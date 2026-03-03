@@ -52,7 +52,7 @@ function renderCoupon(data) {
   if (data.issued.expires_at) {
     var exp = new Date(data.issued.expires_at);
     document.getElementById('couponExpiry').textContent =
-      '有効期限: ' + exp.getFullYear() + '/' + ('0' + (exp.getMonth() + 1)).slice(-2) + '/' + ('0' + exp.getDate()).slice(-2);
+      '有効期限: ' + exp.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' });
   }
 
   if (data.member_name) {
@@ -72,8 +72,7 @@ function renderCoupon(data) {
     if (data.issued.used_at) {
       var ud = new Date(data.issued.used_at);
       document.getElementById('couponExpiry').textContent =
-        '利用日: ' + ud.getFullYear() + '/' + ('0' + (ud.getMonth() + 1)).slice(-2) + '/' + ('0' + ud.getDate()).slice(-2) +
-        ' ' + ('0' + ud.getHours()).slice(-2) + ':' + ('0' + ud.getMinutes()).slice(-2);
+        '利用日: ' + ud.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
     }
   } else if (status === 'expired') {
     showStatusOverlay('expired', 'EXPIRED');

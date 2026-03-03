@@ -43,9 +43,9 @@ function issueCouponToMember(couponId, memberId) {
   var expiresAt = '';
 
   if (coupon.expiry_type === 'relative') {
-    expiresAt = addDays(now, parseInt(coupon.expiry_days) || 30).toISOString();
+    expiresAt = toJSTString(addDays(now, parseInt(coupon.expiry_days) || 30));
   } else if (coupon.expiry_type === 'absolute') {
-    expiresAt = coupon.expiry_date ? new Date(coupon.expiry_date).toISOString() : addDays(now, 30).toISOString();
+    expiresAt = coupon.expiry_date ? toJSTString(coupon.expiry_date) : toJSTString(addDays(now, 30));
   }
 
   var issued = {

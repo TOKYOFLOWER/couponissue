@@ -80,11 +80,11 @@ function formatDateTimeDisplay(dateStr) {
   try {
     var d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    return d.getFullYear() + '/' +
-      ('0' + (d.getMonth() + 1)).slice(-2) + '/' +
-      ('0' + d.getDate()).slice(-2) + ' ' +
-      ('0' + d.getHours()).slice(-2) + ':' +
-      ('0' + d.getMinutes()).slice(-2);
+    return d.toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
   } catch(e) { return dateStr; }
 }
 

@@ -7,18 +7,19 @@ function generateUuid() {
 }
 
 function nowISO() {
-  return new Date().toISOString();
+  return Utilities.formatDate(new Date(), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ss'+09:00'");
+}
+
+function toJSTString(date) {
+  return Utilities.formatDate(new Date(date), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ss'+09:00'");
 }
 
 function formatDate(date) {
-  var d = new Date(date);
-  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  return Utilities.formatDate(new Date(date), 'Asia/Tokyo', 'yyyy-MM-dd');
 }
 
 function formatDateTime(date) {
-  var d = new Date(date);
-  return d.getFullYear() + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' +
-    ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  return Utilities.formatDate(new Date(date), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
 }
 
 function addDays(date, days) {
