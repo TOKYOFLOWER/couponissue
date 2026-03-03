@@ -10,6 +10,12 @@ function getCouponMasters() {
   var coupons = data.map(function(c) {
     var obj = {};
     COUPON_MASTER_HEADERS.forEach(function(h) { obj[h] = c[h]; });
+    if (obj.expiry_date && obj.expiry_date instanceof Date) {
+      obj.expiry_date = Utilities.formatDate(obj.expiry_date, 'Asia/Tokyo', 'yyyy/MM/dd');
+    }
+    if (obj.created_at && obj.created_at instanceof Date) {
+      obj.created_at = toJSTString(obj.created_at);
+    }
     return obj;
   });
   return { success: true, data: { coupons: coupons } };
@@ -23,6 +29,12 @@ function getCouponMasterDetail(couponId) {
   if (!coupon) return { success: false, error: 'クーポンが見つかりません' };
   var obj = {};
   COUPON_MASTER_HEADERS.forEach(function(h) { obj[h] = coupon[h]; });
+  if (obj.expiry_date && obj.expiry_date instanceof Date) {
+    obj.expiry_date = Utilities.formatDate(obj.expiry_date, 'Asia/Tokyo', 'yyyy/MM/dd');
+  }
+  if (obj.created_at && obj.created_at instanceof Date) {
+    obj.created_at = toJSTString(obj.created_at);
+  }
   return { success: true, data: obj };
 }
 
