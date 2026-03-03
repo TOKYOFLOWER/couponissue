@@ -38,21 +38,25 @@ clasp push --force
 clasp deploy --description "初回デプロイ"
 ```
 
-### 3. フロントエンド設定
+### 3. GitHub Secrets 設定
 
-```bash
-# docs/js/config.example.js を docs/js/config.js にコピー
-cp docs/js/config.example.js docs/js/config.js
+GitHub Pages デプロイ時に `config.js` を自動生成するため、リポジトリに Secrets を設定します。
 
-# docs/js/config.js を編集
-# - API_URL: GAS Web AppのデプロイURL
-# - API_KEY: GAS側のAPI_KEYと同じ値
-```
+1. GitHub リポジトリの **Settings → Secrets and variables → Actions**
+2. 「New repository secret」で以下を追加：
+
+| Secret名 | 値 |
+|-----------|-----|
+| `GAS_API_URL` | GAS Web App のデプロイURL（例: `https://script.google.com/macros/s/XXXXX/exec`） |
+| `GAS_API_KEY` | `gas/src/config.js` の `API_KEY` と同じ値 |
 
 ### 4. GitHub Pages 有効化
-1. GitHubリポジトリの Settings → Pages
-2. Source: `main` branch, `/docs` folder
-3. Save
+
+1. GitHubリポジトリの **Settings → Pages**
+2. Source: **GitHub Actions** を選択
+3. `main` ブランチへの push で自動デプロイされます
+
+> **ローカル開発時**: `docs/js/config.example.js` を `docs/js/config.js` にコピーして値を設定してください。`config.js` は `.gitignore` 対象です。
 
 ### 5. APIキー生成
 GASエディタのコンソールで以下を実行してAPIキーを生成：
