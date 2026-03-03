@@ -3,11 +3,11 @@
  */
 
 // スプレッドシートID（clasp push前に設定すること）
-var SPREADSHEET_ID = '';
+var SPREADSHEET_ID = '11aLwRTVX1RaRWodIPlKgy-JRXlChevL980y5Onl2wjE';
 
 // 管理者メールアドレス（初期設定必須）
 var ADMIN_EMAILS = [
-  // 'admin@example.com'
+  'tokyoflowercoltd@gmail.com'
 ];
 
 // シート名
