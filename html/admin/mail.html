@@ -1,0 +1,203 @@
+<div id="mailContent">
+  <h2 class="card-title" style="margin-bottom:20px;">メルマガ配信</h2>
+
+  <!-- 配信フォーム -->
+  <div class="card">
+    <h3 class="card-title">新規配信</h3>
+
+    <div class="form-group">
+      <label>配信タイプ</label>
+      <select class="form-select" id="mailType" onchange="toggleMailTarget()">
+        <option value="magazine">一斉配信（メルマガ）</option>
+        <option value="individual">個別配信</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="mailTargetGroup" style="display:none;">
+      <label>配信先会員</label>
+      <select class="form-select" id="mailTarget">
+        <option value="">選択してください</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>件名 <span class="required">必須</span></label>
+      <input type="text" class="form-input" id="mailSubject" placeholder="例: 【{{store_name}}】春の特別キャンペーン">
+    </div>
+
+    <div class="form-group">
+      <label>本文 <span class="required">必須</span></label>
+      <textarea class="form-textarea" id="mailBody" rows="8" placeholder="{{name}} 様&#10;&#10;いつもご利用ありがとうございます。&#10;&#10;{{coupon_url}}&#10;&#10;{{store_name}}"></textarea>
+      <p style="font-size:11px;color:#999;margin-top:4px;">
+        利用可能な変数: <code>{{name}}</code> <code>{{coupon_url}}</code> <code>{{store_name}}</code> <code>{{unsubscribe_url}}</code>
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>クーポン添付（任意）</label>
+      <select class="form-select" id="mailCouponId">
+        <option value="">クーポンなし</option>
+      </select>
+    </div>
+
+    <div id="mailAlert" style="display:none;"></div>
+
+    <button class="btn btn-primary" onclick="sendMail()" id="sendMailBtn" style="width:100%;">配信する</button>
+  </div>
+
+  <!-- 配信ログ -->
+  <div class="card" style="margin-top:24px;">
+    <h3 class="card-title">配信ログ</h3>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>種別</th>
+            <th>件名</th>
+            <th>送信先</th>
+            <th>件数</th>
+            <th>結果</th>
+          </tr>
+        </thead>
+        <tbody id="mailLogsTable">
+          <tr><td colspan="6" class="loading">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function loadMail() {
+  // 会員リスト読み込み
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error || !result.members) return;
+      var select = document.getElementById('mailTarget');
+      select.innerHTML = '<option value="">選択してください</option>';
+      result.members.filter(function(m) {
+        return m.status === 'active' && m.email;
+      }).forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.member_id;
+        opt.textContent = m.name + ' (' + m.email + ')';
+        select.appendChild(opt);
+      });
+    })
+    .getAllMembers();
+
+  // クーポンリスト読み込み
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error || !result.coupons) return;
+      var select = document.getElementById('mailCouponId');
+      select.innerHTML = '<option value="">クーポンなし</option>';
+      result.coupons.filter(function(c) {
+        return c.is_active === true || c.is_active === 'TRUE';
+      }).forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c.coupon_id;
+        opt.textContent = c.coupon_name + ' (' + c.coupon_id + ')';
+        select.appendChild(opt);
+      });
+    })
+    .getAllCoupons();
+
+  // 配信ログ読み込み
+  loadMailLogs();
+}
+
+function loadMailLogs() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) return;
+      var logs = result.logs || [];
+      var html = '';
+      var typeNames = { magazine: 'メルマガ', individual: '個別', birthday_auto: '誕生日', coupon_notify: 'クーポン通知' };
+
+      if (logs.length === 0) {
+        html = '<tr><td colspan="6" style="text-align:center;color:#999;">配信ログがありません</td></tr>';
+      } else {
+        logs.forEach(function(log) {
+          var statusClass = log.status === 'success' ? 'badge-success' : 'badge-failed';
+          html += '<tr>' +
+            '<td>' + (log.sent_at ? formatDateTimeDisplay(log.sent_at) : '') + '</td>' +
+            '<td>' + (typeNames[log.mail_type] || log.mail_type) + '</td>' +
+            '<td>' + escapeHtml(log.subject || '') + '</td>' +
+            '<td>' + (log.sent_to === 'ALL' ? '全会員' : escapeHtml(log.sent_to || '')) + '</td>' +
+            '<td>' + (log.sent_count || 0) + '</td>' +
+            '<td><span class="badge ' + statusClass + '">' + log.status + '</span></td>' +
+            '</tr>';
+        });
+      }
+      document.getElementById('mailLogsTable').innerHTML = html;
+    })
+    .getMailLogs();
+}
+
+function toggleMailTarget() {
+  var type = document.getElementById('mailType').value;
+  document.getElementById('mailTargetGroup').style.display = type === 'individual' ? 'block' : 'none';
+}
+
+function sendMail() {
+  var type = document.getElementById('mailType').value;
+  var subject = document.getElementById('mailSubject').value.trim();
+  var body = document.getElementById('mailBody').value.trim();
+  var couponId = document.getElementById('mailCouponId').value;
+
+  if (!subject) { alert('件名を入力してください'); return; }
+  if (!body) { alert('本文を入力してください'); return; }
+
+  var btn = document.getElementById('sendMailBtn');
+  btn.disabled = true;
+  btn.textContent = '配信中...';
+
+  var handler = function(result) {
+    btn.disabled = false;
+    btn.textContent = '配信する';
+
+    if (result.success) {
+      var msg = type === 'magazine' ?
+        result.sentCount + '件送信完了' + (result.failCount > 0 ? '（' + result.failCount + '件失敗）' : '') :
+        '送信完了';
+      showMailAlert('success', msg);
+      loadMailLogs();
+      document.getElementById('mailSubject').value = '';
+      document.getElementById('mailBody').value = '';
+    } else {
+      showMailAlert('error', result.error || '配信に失敗しました');
+    }
+  };
+
+  if (type === 'magazine') {
+    if (!confirm('opt-in会員全員にメールを配信します。よろしいですか？')) {
+      btn.disabled = false;
+      btn.textContent = '配信する';
+      return;
+    }
+    google.script.run.withSuccessHandler(handler).withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = '配信する';
+      showMailAlert('error', err.message);
+    }).sendMagazine(subject, body, couponId || null);
+  } else {
+    var memberId = document.getElementById('mailTarget').value;
+    if (!memberId) { alert('配信先会員を選択してください'); btn.disabled = false; btn.textContent = '配信する'; return; }
+    google.script.run.withSuccessHandler(handler).withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = '配信する';
+      showMailAlert('error', err.message);
+    }).sendIndividualMail(memberId, subject, body, couponId || null);
+  }
+}
+
+function showMailAlert(type, message) {
+  var el = document.getElementById('mailAlert');
+  el.className = 'alert alert-' + type;
+  el.textContent = message;
+  el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 5000);
+}
+</script>

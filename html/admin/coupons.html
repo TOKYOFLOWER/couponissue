@@ -1,0 +1,377 @@
+<div id="couponsContent">
+  <div class="toolbar">
+    <h2 class="card-title">クーポン管理</h2>
+    <button class="btn btn-primary btn-small" onclick="showCouponModal()">新規作成</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>クーポン名</th>
+          <th>タイプ</th>
+          <th>値</th>
+          <th>期限</th>
+          <th>利用フロー</th>
+          <th>状態</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="couponsTable">
+        <tr><td colspan="8" class="loading">読み込み中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 発行済みクーポン一覧 -->
+  <div class="card" style="margin-top:24px;">
+    <h3 class="card-title">発行済みクーポン</h3>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>クーポン</th>
+            <th>会員</th>
+            <th>発行日</th>
+            <th>有効期限</th>
+            <th>ステータス</th>
+          </tr>
+        </thead>
+        <tbody id="issuedTable">
+          <tr><td colspan="5" class="loading">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- クーポン作成/編集モーダル -->
+<div class="modal-overlay" id="couponModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="couponModalTitle">新規クーポン作成</h3>
+      <button class="modal-close" onclick="closeCouponModal()">&times;</button>
+    </div>
+    <input type="hidden" id="editCouponId">
+
+    <div class="form-group">
+      <label>クーポン名 <span class="required">必須</span></label>
+      <input type="text" class="form-input" id="cName" placeholder="例: 春の10%OFFクーポン">
+    </div>
+    <div class="form-group">
+      <label>タイプ</label>
+      <select class="form-select" id="cType" onchange="updateValueLabel()">
+        <option value="percent">割引率（%OFF）</option>
+        <option value="fixed">固定金額（円引き）</option>
+        <option value="benefit">特典</option>
+        <option value="point">ポイント付与</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="cValueLabel">割引率（数値）</label>
+      <input type="text" class="form-input" id="cValue" placeholder="10">
+    </div>
+    <div class="form-group">
+      <label>説明文</label>
+      <textarea class="form-textarea" id="cDescription" rows="2"></textarea>
+    </div>
+    <div class="form-group">
+      <label>期限タイプ</label>
+      <select class="form-select" id="cExpiryType" onchange="toggleExpiryFields()">
+        <option value="relative">相対期限（発行後N日）</option>
+        <option value="absolute">絶対期限（指定日）</option>
+      </select>
+    </div>
+    <div class="form-group" id="expiryDaysGroup">
+      <label>有効日数</label>
+      <input type="number" class="form-input" id="cExpiryDays" value="30" min="1">
+    </div>
+    <div class="form-group" id="expiryDateGroup" style="display:none;">
+      <label>有効期限日</label>
+      <input type="date" class="form-input" id="cExpiryDate">
+    </div>
+    <div class="form-group">
+      <label>配信方法</label>
+      <select class="form-select" id="cDistribution">
+        <option value="individual">個別配信</option>
+        <option value="mail_magazine">メルマガ</option>
+        <option value="birthday">誕生日</option>
+        <option value="qr_store">店頭QR</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>利用フロー</label>
+      <select class="form-select" id="cUsageFlow">
+        <option value="customer_swipe">お客様スワイプ</option>
+        <option value="staff_operate">スタッフ操作</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>デザインカラー</label>
+      <input type="color" class="form-input" id="cDesignColor" value="#F8BBD0" style="height:44px;">
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="cIsActive" checked>
+        有効にする
+      </label>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="saveCoupon()" style="flex:1;">保存</button>
+      <button class="btn btn-secondary" onclick="closeCouponModal()" style="flex:1;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- クーポン発行モーダル -->
+<div class="modal-overlay" id="issueModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>クーポン発行</h3>
+      <button class="modal-close" onclick="closeIssueModal()">&times;</button>
+    </div>
+    <p id="issueCouponInfo" style="margin-bottom:16px;"></p>
+    <input type="hidden" id="issueCouponId">
+
+    <div class="form-group">
+      <label>発行先会員を選択</label>
+      <div id="issueMemberList" style="max-height:300px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;">
+        読み込み中...
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="executeIssueCoupon()" style="width:100%;margin-top:8px;">発行する</button>
+  </div>
+</div>
+
+<script>
+var allCouponsCache = [];
+
+function loadCoupons() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) return;
+      allCouponsCache = result.coupons || [];
+      renderCouponsTable(allCouponsCache);
+    })
+    .getAllCoupons();
+
+  loadIssuedCoupons();
+}
+
+function renderCouponsTable(coupons) {
+  var html = '';
+  var typeNames = { percent: '割引率', fixed: '固定金額', benefit: '特典', point: 'ポイント' };
+  var flowNames = { customer_swipe: 'お客様', staff_operate: 'スタッフ' };
+
+  if (coupons.length === 0) {
+    html = '<tr><td colspan="8" style="text-align:center;color:#999;">クーポンがありません</td></tr>';
+  } else {
+    coupons.forEach(function(c) {
+      var expiry = c.expiry_type === 'relative' ? (c.expiry_days + '日間') : (c.expiry_date || '-');
+      var activeClass = (c.is_active === true || c.is_active === 'TRUE') ? 'badge-active' : 'badge-inactive';
+      var activeText = (c.is_active === true || c.is_active === 'TRUE') ? '有効' : '無効';
+
+      html += '<tr>' +
+        '<td>' + escapeHtml(c.coupon_id) + '</td>' +
+        '<td>' + escapeHtml(c.coupon_name) + '</td>' +
+        '<td>' + (typeNames[c.coupon_type] || c.coupon_type) + '</td>' +
+        '<td>' + escapeHtml(String(c.coupon_value)) + '</td>' +
+        '<td>' + expiry + '</td>' +
+        '<td>' + (flowNames[c.usage_flow] || c.usage_flow) + '</td>' +
+        '<td><span class="badge ' + activeClass + '">' + activeText + '</span></td>' +
+        '<td>' +
+          '<button class="btn btn-small btn-primary" onclick="editCoupon(\'' + c.coupon_id + '\')" style="margin-right:4px;">編集</button>' +
+          '<button class="btn btn-small" style="background:#4CAF50;color:#fff;" onclick="showIssueModal(\'' + c.coupon_id + '\', \'' + escapeHtml(c.coupon_name) + '\')">発行</button>' +
+        '</td>' +
+        '</tr>';
+    });
+  }
+  document.getElementById('couponsTable').innerHTML = html;
+}
+
+function loadIssuedCoupons() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error || !result.members) return;
+      var members = result.members;
+      var memberMap = {};
+      members.forEach(function(m) { memberMap[m.member_id] = m.name; });
+
+      google.script.run
+        .withSuccessHandler(function(cResult) {
+          if (cResult.error || !cResult.coupons) return;
+          var couponMap = {};
+          cResult.coupons.forEach(function(c) { couponMap[c.coupon_id] = c.coupon_name; });
+
+          // 発行済みクーポン取得用に直接シートデータ取得
+          google.script.run
+            .withSuccessHandler(function(allData) {
+              renderIssuedTable(allData, memberMap, couponMap);
+            })
+            .getAllIssuedCoupons();
+        })
+        .getAllCoupons();
+    })
+    .getAllMembers();
+}
+
+function renderIssuedTable(issuedList, memberMap, couponMap) {
+  var html = '';
+  if (!issuedList || issuedList.length === 0) {
+    html = '<tr><td colspan="5" style="text-align:center;color:#999;">発行済みクーポンがありません</td></tr>';
+  } else {
+    // 新しい順にソート
+    issuedList.sort(function(a, b) {
+      return new Date(b.issued_at) - new Date(a.issued_at);
+    });
+    var displayed = issuedList.slice(0, 50); // 最新50件
+    displayed.forEach(function(item) {
+      var statusClass = 'badge-' + item.status;
+      var statusNames = { unused: '未使用', used: '利用済', expired: '期限切れ' };
+      html += '<tr>' +
+        '<td>' + escapeHtml(couponMap[item.coupon_id] || item.coupon_id) + '</td>' +
+        '<td>' + escapeHtml(memberMap[item.member_id] || item.member_id) + '</td>' +
+        '<td>' + (item.issued_at ? formatDateTimeDisplay(item.issued_at) : '') + '</td>' +
+        '<td>' + (item.expires_at ? formatDateTimeDisplay(item.expires_at) : '') + '</td>' +
+        '<td><span class="badge ' + statusClass + '">' + (statusNames[item.status] || item.status) + '</span></td>' +
+        '</tr>';
+    });
+  }
+  document.getElementById('issuedTable').innerHTML = html;
+}
+
+function showCouponModal(coupon) {
+  document.getElementById('couponModalTitle').textContent = coupon ? 'クーポン編集' : '新規クーポン作成';
+  document.getElementById('editCouponId').value = coupon ? coupon.coupon_id : '';
+  document.getElementById('cName').value = coupon ? coupon.coupon_name : '';
+  document.getElementById('cType').value = coupon ? coupon.coupon_type : 'percent';
+  document.getElementById('cValue').value = coupon ? coupon.coupon_value : '';
+  document.getElementById('cDescription').value = coupon ? (coupon.description || '') : '';
+  document.getElementById('cExpiryType').value = coupon ? coupon.expiry_type : 'relative';
+  document.getElementById('cExpiryDays').value = coupon ? (coupon.expiry_days || 30) : 30;
+  document.getElementById('cExpiryDate').value = coupon ? (coupon.expiry_date || '') : '';
+  document.getElementById('cDistribution').value = coupon ? coupon.distribution_method : 'individual';
+  document.getElementById('cUsageFlow').value = coupon ? coupon.usage_flow : 'customer_swipe';
+  document.getElementById('cDesignColor').value = coupon ? (coupon.design_color || '#F8BBD0') : '#F8BBD0';
+  document.getElementById('cIsActive').checked = coupon ? (coupon.is_active === true || coupon.is_active === 'TRUE') : true;
+
+  updateValueLabel();
+  toggleExpiryFields();
+  document.getElementById('couponModal').classList.add('active');
+}
+
+function closeCouponModal() {
+  document.getElementById('couponModal').classList.remove('active');
+}
+
+function editCoupon(couponId) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success && result.coupon) {
+        showCouponModal(result.coupon);
+      }
+    })
+    .getCoupon(couponId);
+}
+
+function updateValueLabel() {
+  var type = document.getElementById('cType').value;
+  var labels = { percent: '割引率（数値）', fixed: '割引金額（円）', benefit: '特典内容', point: '付与ポイント数' };
+  document.getElementById('cValueLabel').textContent = labels[type] || '値';
+}
+
+function toggleExpiryFields() {
+  var type = document.getElementById('cExpiryType').value;
+  document.getElementById('expiryDaysGroup').style.display = type === 'relative' ? 'block' : 'none';
+  document.getElementById('expiryDateGroup').style.display = type === 'absolute' ? 'block' : 'none';
+}
+
+function saveCoupon() {
+  var couponId = document.getElementById('editCouponId').value;
+  var data = {
+    coupon_name: document.getElementById('cName').value.trim(),
+    coupon_type: document.getElementById('cType').value,
+    coupon_value: document.getElementById('cValue').value.trim(),
+    description: document.getElementById('cDescription').value.trim(),
+    expiry_type: document.getElementById('cExpiryType').value,
+    expiry_days: parseInt(document.getElementById('cExpiryDays').value) || 30,
+    expiry_date: document.getElementById('cExpiryDate').value,
+    distribution_method: document.getElementById('cDistribution').value,
+    usage_flow: document.getElementById('cUsageFlow').value,
+    design_color: document.getElementById('cDesignColor').value,
+    is_active: document.getElementById('cIsActive').checked
+  };
+
+  if (!data.coupon_name) { alert('クーポン名を入力してください'); return; }
+
+  if (couponId) {
+    data.coupon_id = couponId;
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) { closeCouponModal(); loadCoupons(); }
+        else { alert(result.error || '更新に失敗しました'); }
+      })
+      .updateCouponMaster(data);
+  } else {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) { closeCouponModal(); loadCoupons(); }
+        else { alert(result.error || '作成に失敗しました'); }
+      })
+      .createCoupon(data);
+  }
+}
+
+function showIssueModal(couponId, couponName) {
+  document.getElementById('issueCouponId').value = couponId;
+  document.getElementById('issueCouponInfo').textContent = 'クーポン: ' + couponName;
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error || !result.members) return;
+      var html = '';
+      var activeMembers = result.members.filter(function(m) { return m.status === 'active'; });
+      activeMembers.forEach(function(m) {
+        html += '<label class="checkbox-label" style="padding:6px 0;border-bottom:1px solid #f0f0f0;">' +
+          '<input type="checkbox" name="issueMember" value="' + m.member_id + '">' +
+          escapeHtml(m.name) + ' (' + escapeHtml(m.email || '未登録') + ')' +
+          '</label>';
+      });
+      if (activeMembers.length === 0) {
+        html = '<p style="color:#999;text-align:center;">アクティブな会員がいません</p>';
+      }
+      document.getElementById('issueMemberList').innerHTML = html;
+    })
+    .getAllMembers();
+
+  document.getElementById('issueModal').classList.add('active');
+}
+
+function closeIssueModal() {
+  document.getElementById('issueModal').classList.remove('active');
+}
+
+function executeIssueCoupon() {
+  var couponId = document.getElementById('issueCouponId').value;
+  var checkboxes = document.querySelectorAll('input[name="issueMember"]:checked');
+  var memberIds = [];
+  checkboxes.forEach(function(cb) { memberIds.push(cb.value); });
+
+  if (memberIds.length === 0) { alert('発行先会員を選択してください'); return; }
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        closeIssueModal();
+        loadCoupons();
+        alert(result.count + '名にクーポンを発行しました');
+      } else {
+        alert(result.error || '発行に失敗しました');
+      }
+    })
+    .issueCouponToMembers(couponId, memberIds);
+}
+</script>

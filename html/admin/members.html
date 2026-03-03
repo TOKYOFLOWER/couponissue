@@ -1,0 +1,270 @@
+<div id="membersContent">
+  <div class="toolbar">
+    <h2 class="card-title">会員管理</h2>
+    <button class="btn btn-primary btn-small" onclick="showMemberModal()">新規登録</button>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="memberSearch" placeholder="名前・電話・メールで検索..." onkeyup="if(event.key==='Enter')searchMemberList()">
+    <button onclick="searchMemberList()">検索</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>名前</th>
+          <th>フリガナ</th>
+          <th>電話番号</th>
+          <th>メール</th>
+          <th>誕生日</th>
+          <th>ポイント</th>
+          <th>状態</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="membersTable">
+        <tr><td colspan="8" class="loading">読み込み中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 会員登録/編集モーダル -->
+<div class="modal-overlay" id="memberModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="memberModalTitle">新規会員登録</h3>
+      <button class="modal-close" onclick="closeMemberModal()">&times;</button>
+    </div>
+    <input type="hidden" id="editMemberId">
+
+    <div class="form-group">
+      <label>お名前 <span class="required">必須</span></label>
+      <input type="text" class="form-input" id="mName">
+    </div>
+    <div class="form-group">
+      <label>フリガナ</label>
+      <input type="text" class="form-input" id="mNameKana">
+    </div>
+    <div class="form-group">
+      <label>電話番号</label>
+      <input type="tel" class="form-input" id="mPhone">
+    </div>
+    <div class="form-group">
+      <label>メールアドレス</label>
+      <input type="email" class="form-input" id="mEmail">
+    </div>
+    <div class="form-group">
+      <label>誕生日（MM/DD）</label>
+      <input type="text" class="form-input" id="mBirthday" placeholder="03/15">
+    </div>
+    <div class="form-group">
+      <label>ステータス</label>
+      <select class="form-select" id="mStatus">
+        <option value="active">アクティブ</option>
+        <option value="inactive">無効</option>
+        <option value="unsubscribed">配信停止</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="mMailOptIn" checked>
+        メルマガ受信許可
+      </label>
+    </div>
+    <div class="form-group">
+      <label>備考</label>
+      <textarea class="form-textarea" id="mMemo" rows="3"></textarea>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="saveMember()" style="flex:1;">保存</button>
+      <button class="btn btn-secondary" onclick="closeMemberModal()" style="flex:1;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ポイント操作モーダル -->
+<div class="modal-overlay" id="pointModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>ポイント操作</h3>
+      <button class="modal-close" onclick="closePointModal()">&times;</button>
+    </div>
+    <input type="hidden" id="pointMemberId">
+    <p id="pointMemberInfo" style="margin-bottom:16px;"></p>
+
+    <div class="form-group">
+      <label>操作</label>
+      <select class="form-select" id="pointAction">
+        <option value="add">ポイント付与</option>
+        <option value="use">ポイント利用</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ポイント数</label>
+      <input type="number" class="form-input" id="pointAmount" min="1">
+    </div>
+    <div class="form-group">
+      <label>理由</label>
+      <input type="text" class="form-input" id="pointReason">
+    </div>
+
+    <button class="btn btn-primary" onclick="executePointAction()" style="width:100%;margin-top:8px;">実行</button>
+  </div>
+</div>
+
+<script>
+function loadMembers() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) return;
+      renderMembersTable(result.members || []);
+    })
+    .getAllMembers();
+}
+
+function renderMembersTable(members) {
+  var html = '';
+  if (members.length === 0) {
+    html = '<tr><td colspan="8" style="text-align:center;color:#999;">会員がいません</td></tr>';
+  } else {
+    members.forEach(function(m) {
+      var statusClass = 'badge-' + m.status;
+      var statusName = { active: 'アクティブ', inactive: '無効', unsubscribed: '配信停止' };
+      html += '<tr>' +
+        '<td>' + escapeHtml(m.name) + '</td>' +
+        '<td>' + escapeHtml(m.name_kana || '') + '</td>' +
+        '<td>' + escapeHtml(m.phone || '') + '</td>' +
+        '<td>' + escapeHtml(m.email || '') + '</td>' +
+        '<td>' + escapeHtml(m.birthday || '') + '</td>' +
+        '<td>' + (parseInt(m.available_points) || 0) + 'pt</td>' +
+        '<td><span class="badge ' + statusClass + '">' + (statusName[m.status] || m.status) + '</span></td>' +
+        '<td>' +
+          '<button class="btn btn-small btn-primary" onclick="editMember(\'' + m.member_id + '\')" style="margin-right:4px;">編集</button>' +
+          '<button class="btn btn-small btn-secondary" onclick="showPointModal(\'' + m.member_id + '\', \'' + escapeHtml(m.name) + '\', ' + (parseInt(m.available_points) || 0) + ')">Pt</button>' +
+        '</td>' +
+        '</tr>';
+    });
+  }
+  document.getElementById('membersTable').innerHTML = html;
+}
+
+function searchMemberList() {
+  var query = document.getElementById('memberSearch').value.trim();
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) return;
+      renderMembersTable(result.members || []);
+    })
+    .searchMembers(query);
+}
+
+function showMemberModal(member) {
+  document.getElementById('memberModalTitle').textContent = member ? '会員編集' : '新規会員登録';
+  document.getElementById('editMemberId').value = member ? member.member_id : '';
+  document.getElementById('mName').value = member ? member.name : '';
+  document.getElementById('mNameKana').value = member ? (member.name_kana || '') : '';
+  document.getElementById('mPhone').value = member ? (member.phone || '') : '';
+  document.getElementById('mEmail').value = member ? (member.email || '') : '';
+  document.getElementById('mBirthday').value = member ? (member.birthday || '') : '';
+  document.getElementById('mStatus').value = member ? (member.status || 'active') : 'active';
+  document.getElementById('mMailOptIn').checked = member ? (member.mail_opt_in === true || member.mail_opt_in === 'TRUE') : true;
+  document.getElementById('mMemo').value = member ? (member.memo || '') : '';
+  document.getElementById('memberModal').classList.add('active');
+}
+
+function closeMemberModal() {
+  document.getElementById('memberModal').classList.remove('active');
+}
+
+function editMember(memberId) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success && result.member) {
+        showMemberModal(result.member);
+      }
+    })
+    .getMember(memberId);
+}
+
+function saveMember() {
+  var memberId = document.getElementById('editMemberId').value;
+  var data = {
+    name: document.getElementById('mName').value.trim(),
+    name_kana: document.getElementById('mNameKana').value.trim(),
+    phone: document.getElementById('mPhone').value.trim(),
+    email: document.getElementById('mEmail').value.trim(),
+    birthday: document.getElementById('mBirthday').value.trim(),
+    status: document.getElementById('mStatus').value,
+    mail_opt_in: document.getElementById('mMailOptIn').checked,
+    memo: document.getElementById('mMemo').value.trim()
+  };
+
+  if (!data.name) { alert('お名前を入力してください'); return; }
+
+  if (memberId) {
+    data.member_id = memberId;
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) {
+          closeMemberModal();
+          loadMembers();
+        } else {
+          alert(result.error || '更新に失敗しました');
+        }
+      })
+      .updateMember(data);
+  } else {
+    data.registration_method = 'staff';
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.success) {
+          closeMemberModal();
+          loadMembers();
+        } else {
+          alert(result.error || '登録に失敗しました');
+        }
+      })
+      .registerMember(data);
+  }
+}
+
+function showPointModal(memberId, name, points) {
+  document.getElementById('pointMemberId').value = memberId;
+  document.getElementById('pointMemberInfo').textContent = name + ' （現在: ' + points + 'pt）';
+  document.getElementById('pointAmount').value = '';
+  document.getElementById('pointReason').value = '';
+  document.getElementById('pointModal').classList.add('active');
+}
+
+function closePointModal() {
+  document.getElementById('pointModal').classList.remove('active');
+}
+
+function executePointAction() {
+  var memberId = document.getElementById('pointMemberId').value;
+  var action = document.getElementById('pointAction').value;
+  var amount = parseInt(document.getElementById('pointAmount').value);
+  var reason = document.getElementById('pointReason').value.trim();
+
+  if (!amount || amount <= 0) { alert('ポイント数を入力してください'); return; }
+
+  var handler = function(result) {
+    if (result.success) {
+      closePointModal();
+      loadMembers();
+      alert('ポイント操作が完了しました');
+    } else {
+      alert(result.error || '操作に失敗しました');
+    }
+  };
+
+  if (action === 'add') {
+    google.script.run.withSuccessHandler(handler).addPoints(memberId, amount, reason);
+  } else {
+    google.script.run.withSuccessHandler(handler).usePoints(memberId, amount, reason);
+  }
+}
+</script>

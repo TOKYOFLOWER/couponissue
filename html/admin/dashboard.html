@@ -1,0 +1,98 @@
+<div id="dashboardContent">
+  <h2 class="card-title" style="margin-bottom:20px;">ダッシュボード</h2>
+
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+      <div class="stat-number" id="statTotalMembers">-</div>
+      <div class="stat-label">全会員数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="statActiveMembers">-</div>
+      <div class="stat-label">アクティブ会員</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="statUnusedCoupons">-</div>
+      <div class="stat-label">未使用クーポン</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" id="statBirthday">-</div>
+      <div class="stat-label">本日お誕生日</div>
+    </div>
+  </div>
+
+  <!-- 本日の誕生日会員 -->
+  <div class="card" id="birthdayCard" style="display:none;">
+    <h3 class="card-title">本日お誕生日の会員</h3>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr><th>名前</th><th>メール</th><th>電話番号</th></tr>
+        </thead>
+        <tbody id="birthdayTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 直近の配信ログ -->
+  <div class="card">
+    <h3 class="card-title">直近の配信ログ</h3>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr><th>日時</th><th>種別</th><th>件名</th><th>件数</th><th>結果</th></tr>
+        </thead>
+        <tbody id="recentLogsTable">
+          <tr><td colspan="5" class="loading">読み込み中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function loadDashboard() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) return;
+
+      document.getElementById('statTotalMembers').textContent = result.totalMembers || 0;
+      document.getElementById('statActiveMembers').textContent = result.activeMembers || 0;
+      document.getElementById('statUnusedCoupons').textContent = result.unusedCoupons || 0;
+      document.getElementById('statBirthday').textContent =
+        (result.birthdayMembers ? result.birthdayMembers.length : 0);
+
+      // 誕生日会員
+      if (result.birthdayMembers && result.birthdayMembers.length > 0) {
+        document.getElementById('birthdayCard').style.display = 'block';
+        var html = '';
+        result.birthdayMembers.forEach(function(m) {
+          html += '<tr><td>' + escapeHtml(m.name) + '</td>' +
+                  '<td>' + escapeHtml(m.email) + '</td>' +
+                  '<td>' + escapeHtml(m.phone) + '</td></tr>';
+        });
+        document.getElementById('birthdayTable').innerHTML = html;
+      }
+
+      // 配信ログ
+      var logsHtml = '';
+      if (result.recentLogs && result.recentLogs.length > 0) {
+        result.recentLogs.forEach(function(log) {
+          var dateStr = log.sent_at ? formatDateTimeDisplay(log.sent_at) : '';
+          var typeName = { magazine: 'メルマガ', individual: '個別', birthday_auto: '誕生日', coupon_notify: 'クーポン通知' };
+          var statusBadge = log.status === 'success' ? 'badge-success' : 'badge-failed';
+          logsHtml += '<tr>' +
+            '<td>' + dateStr + '</td>' +
+            '<td>' + (typeName[log.mail_type] || log.mail_type) + '</td>' +
+            '<td>' + escapeHtml(log.subject || '') + '</td>' +
+            '<td>' + (log.sent_count || 0) + '</td>' +
+            '<td><span class="badge ' + statusBadge + '">' + log.status + '</span></td>' +
+            '</tr>';
+        });
+      } else {
+        logsHtml = '<tr><td colspan="5" style="text-align:center;color:#999;">配信ログがありません</td></tr>';
+      }
+      document.getElementById('recentLogsTable').innerHTML = logsHtml;
+    })
+    .getDashboardData();
+}
+</script>

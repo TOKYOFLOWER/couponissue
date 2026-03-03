@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員登録</title>
+  <?!= include('html/common/style'); ?>
+</head>
+<body>
+  <div class="public-container">
+    <div class="public-header">
+      <h1>会員登録</h1>
+      <div class="store-name" id="storeName"></div>
+    </div>
+
+    <!-- 登録フォーム -->
+    <div id="registerForm">
+      <div class="form-group">
+        <label>お名前 <span class="required">必須</span></label>
+        <input type="text" class="form-input" id="name" placeholder="山田 花子" required>
+      </div>
+
+      <div class="form-group">
+        <label>フリガナ <span class="required">必須</span></label>
+        <input type="text" class="form-input" id="nameKana" placeholder="ヤマダ ハナコ" required>
+      </div>
+
+      <div class="form-group">
+        <label>電話番号</label>
+        <input type="tel" class="form-input" id="phone" placeholder="090-1234-5678">
+      </div>
+
+      <div class="form-group">
+        <label>メールアドレス <span class="required">必須</span></label>
+        <input type="email" class="form-input" id="email" placeholder="example@email.com" required>
+      </div>
+
+      <div class="form-group">
+        <label>お誕生日（月/日）</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="form-select" id="birthMonth" style="width:auto;">
+            <option value="">月</option>
+          </select>
+          <span>/</span>
+          <select class="form-select" id="birthDay" style="width:auto;">
+            <option value="">日</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="mailOptIn" checked>
+          お得な情報やクーポンをメールで受け取る
+        </label>
+      </div>
+
+      <div style="margin-top:24px;">
+        <button class="btn btn-primary" onclick="submitRegistration()" id="submitBtn">
+          会員登録する
+        </button>
+      </div>
+
+      <div id="errorMsg" class="alert alert-error" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <!-- 完了画面 -->
+    <div id="completeScreen" style="display:none;text-align:center;padding:40px 0;">
+      <div class="success-check"></div>
+      <h2 style="margin-top:20px;color:#2E7D32;">登録完了</h2>
+      <p style="margin-top:12px;color:#666;">
+        会員登録が完了しました。<br>
+        ご登録いただいたメールアドレスに<br>確認メールをお送りしました。
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // 月・日のセレクトボックス初期化
+    (function() {
+      var monthSelect = document.getElementById('birthMonth');
+      var daySelect = document.getElementById('birthDay');
+      for (var m = 1; m <= 12; m++) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m + '月';
+        monthSelect.appendChild(opt);
+      }
+      for (var d = 1; d <= 31; d++) {
+        var opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d + '日';
+        daySelect.appendChild(opt);
+      }
+    })();
+
+    // 店名取得
+    google.script.run.withSuccessHandler(function(result) {
+      if (result && result.settings) {
+        document.getElementById('storeName').textContent = result.settings.store_name || '';
+      }
+    }).getAllSettings();
+
+    function submitRegistration() {
+      var name = document.getElementById('name').value.trim();
+      var nameKana = document.getElementById('nameKana').value.trim();
+      var email = document.getElementById('email').value.trim();
+      var phone = document.getElementById('phone').value.trim();
+      var birthMonth = document.getElementById('birthMonth').value;
+      var birthDay = document.getElementById('birthDay').value;
+      var mailOptIn = document.getElementById('mailOptIn').checked;
+
+      // バリデーション
+      if (!name) return showError('お名前を入力してください');
+      if (!nameKana) return showError('フリガナを入力してください');
+      if (!email) return showError('メールアドレスを入力してください');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showError('メールアドレスの形式が正しくありません');
+
+      var birthday = '';
+      if (birthMonth && birthDay) {
+        birthday = ('0' + birthMonth).slice(-2) + '/' + ('0' + birthDay).slice(-2);
+      }
+
+      var data = {
+        name: name,
+        name_kana: nameKana,
+        phone: phone,
+        email: email,
+        birthday: birthday,
+        registration_method: 'web',
+        mail_opt_in: mailOptIn
+      };
+
+      var btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '登録中...';
+      hideError();
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('completeScreen').style.display = 'block';
+          } else {
+            showError(result.error || '登録に失敗しました');
+            btn.disabled = false;
+            btn.textContent = '会員登録する';
+          }
+        })
+        .withFailureHandler(function(err) {
+          showError('エラーが発生しました: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '会員登録する';
+        })
+        .registerMember(data);
+    }
+
+    function showError(msg) {
+      var el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

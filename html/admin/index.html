@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理画面</title>
+  <?!= include('html/common/style'); ?>
+</head>
+<body>
+  <div class="admin-container">
+    <!-- ヘッダー -->
+    <div class="admin-header">
+      <h1 id="adminTitle">クーポン管理システム</h1>
+      <div class="user-info" id="userInfo"></div>
+    </div>
+
+    <!-- タブメニュー -->
+    <div class="tab-menu">
+      <div class="tab-item active" data-tab="dashboard" onclick="switchTab('dashboard')">ダッシュボード</div>
+      <div class="tab-item" data-tab="members" onclick="switchTab('members')">会員管理</div>
+      <div class="tab-item" data-tab="coupons" onclick="switchTab('coupons')">クーポン</div>
+      <div class="tab-item" data-tab="mail" onclick="switchTab('mail')">メルマガ</div>
+      <div class="tab-item" data-tab="settings" onclick="switchTab('settings')">設定</div>
+    </div>
+
+    <!-- タブコンテンツ -->
+    <div class="tab-content active" id="tab-dashboard">
+      <?!= include('html/admin/dashboard'); ?>
+    </div>
+
+    <div class="tab-content" id="tab-members">
+      <?!= include('html/admin/members'); ?>
+    </div>
+
+    <div class="tab-content" id="tab-coupons">
+      <?!= include('html/admin/coupons'); ?>
+    </div>
+
+    <div class="tab-content" id="tab-mail">
+      <?!= include('html/admin/mail'); ?>
+    </div>
+
+    <div class="tab-content" id="tab-settings">
+      <h2 class="card-title" style="margin-bottom:20px;">システム設定</h2>
+      <div class="card">
+        <div class="form-group">
+          <label>店舗名</label>
+          <input type="text" class="form-input" id="sStoreName">
+        </div>
+        <div class="form-group">
+          <label>店舗メールアドレス</label>
+          <input type="email" class="form-input" id="sStoreEmail">
+        </div>
+        <div class="form-group">
+          <label>Web App URL</label>
+          <input type="text" class="form-input" id="sWebappUrl" placeholder="デプロイ後のURL">
+        </div>
+        <div class="form-group">
+          <label>ウェルカムクーポンID</label>
+          <select class="form-select" id="sWelcomeCouponId">
+            <option value="">なし</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>誕生日クーポンID</label>
+          <select class="form-select" id="sBirthdayCouponId">
+            <option value="">なし</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>誕生日メール送信日（毎月N日）</label>
+          <input type="number" class="form-input" id="sBirthdaySendDay" min="1" max="28" value="1">
+        </div>
+
+        <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;margin-top:8px;">設定を保存</button>
+        <div id="settingsAlert" style="display:none;margin-top:12px;"></div>
+
+        <hr style="margin:24px 0;">
+        <h3 class="card-title">トリガー管理</h3>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+          毎日の自動処理（誕生日クーポン配信、期限切れ処理）のトリガーを設定します。
+        </p>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-small" onclick="setupTriggersAction()">トリガー設定</button>
+          <button class="btn btn-danger btn-small" onclick="removeTriggersAction()">トリガー削除</button>
+        </div>
+
+        <hr style="margin:24px 0;">
+        <h3 class="card-title">シート初期化</h3>
+        <p style="font-size:13px;color:#666;margin-bottom:12px;">
+          初回セットアップ時のみ実行してください。既存データには影響しません。
+        </p>
+        <button class="btn btn-secondary btn-small" onclick="initSheetsAction()">シート初期化</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ユーティリティ関数
+    function escapeHtml(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatDateTimeDisplay(dateStr) {
+      if (!dateStr) return '';
+      try {
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.getFullYear() + '/' +
+          ('0' + (d.getMonth() + 1)).slice(-2) + '/' +
+          ('0' + d.getDate()).slice(-2) + ' ' +
+          ('0' + d.getHours()).slice(-2) + ':' +
+          ('0' + d.getMinutes()).slice(-2);
+      } catch(e) { return dateStr; }
+    }
+
+    // タブ切り替え
+    var currentTab = 'dashboard';
+    var tabLoaded = { dashboard: false, members: false, coupons: false, mail: false, settings: false };
+
+    function switchTab(tabName) {
+      // アクティブタブの切り替え
+      document.querySelectorAll('.tab-item').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.tab === tabName);
+      });
+      document.querySelectorAll('.tab-content').forEach(function(el) {
+        el.classList.toggle('active', el.id === 'tab-' + tabName);
+      });
+
+      currentTab = tabName;
+
+      // 初回読み込み
+      if (!tabLoaded[tabName]) {
+        tabLoaded[tabName] = true;
+        switch (tabName) {
+          case 'dashboard': loadDashboard(); break;
+          case 'members': loadMembers(); break;
+          case 'coupons': loadCoupons(); break;
+          case 'mail': loadMail(); break;
+          case 'settings': loadSettings(); break;
+        }
+      }
+    }
+
+    // 設定関連
+    function loadSettings() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.error || !result.settings) return;
+          var s = result.settings;
+          document.getElementById('sStoreName').value = s.store_name || '';
+          document.getElementById('sStoreEmail').value = s.store_email || '';
+          document.getElementById('sWebappUrl').value = s.webapp_url || '';
+          document.getElementById('sBirthdaySendDay').value = s.birthday_send_day || '1';
+
+          // クーポンセレクトボックス更新
+          google.script.run
+            .withSuccessHandler(function(cResult) {
+              if (cResult.error || !cResult.coupons) return;
+              var welcomeSelect = document.getElementById('sWelcomeCouponId');
+              var birthdaySelect = document.getElementById('sBirthdayCouponId');
+              welcomeSelect.innerHTML = '<option value="">なし</option>';
+              birthdaySelect.innerHTML = '<option value="">なし</option>';
+
+              cResult.coupons.forEach(function(c) {
+                var opt1 = document.createElement('option');
+                opt1.value = c.coupon_id;
+                opt1.textContent = c.coupon_name + ' (' + c.coupon_id + ')';
+                if (c.coupon_id === s.welcome_coupon_id) opt1.selected = true;
+                welcomeSelect.appendChild(opt1);
+
+                var opt2 = document.createElement('option');
+                opt2.value = c.coupon_id;
+                opt2.textContent = c.coupon_name + ' (' + c.coupon_id + ')';
+                if (c.coupon_id === s.birthday_coupon_id) opt2.selected = true;
+                birthdaySelect.appendChild(opt2);
+              });
+            })
+            .getAllCoupons();
+        })
+        .getAllSettings();
+    }
+
+    function saveSettings() {
+      var data = {
+        store_name: document.getElementById('sStoreName').value.trim(),
+        store_email: document.getElementById('sStoreEmail').value.trim(),
+        webapp_url: document.getElementById('sWebappUrl').value.trim(),
+        welcome_coupon_id: document.getElementById('sWelcomeCouponId').value,
+        birthday_coupon_id: document.getElementById('sBirthdayCouponId').value,
+        birthday_send_day: document.getElementById('sBirthdaySendDay').value
+      };
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showSettingsAlert('success', '設定を保存しました');
+          } else {
+            showSettingsAlert('error', result.error || '保存に失敗しました');
+          }
+        })
+        .updateSettings(data);
+    }
+
+    function showSettingsAlert(type, msg) {
+      var el = document.getElementById('settingsAlert');
+      el.className = 'alert alert-' + type;
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(function() { el.style.display = 'none'; }, 3000);
+    }
+
+    function setupTriggersAction() {
+      if (!confirm('自動トリガーを設定します。既存のトリガーは全て置き換えられます。よろしいですか？')) return;
+      google.script.run
+        .withSuccessHandler(function() { alert('トリガーを設定しました'); })
+        .withFailureHandler(function(e) { alert('エラー: ' + e.message); })
+        .setupTriggers();
+    }
+
+    function removeTriggersAction() {
+      if (!confirm('全ての自動トリガーを削除します。よろしいですか？')) return;
+      google.script.run
+        .withSuccessHandler(function() { alert('トリガーを削除しました'); })
+        .withFailureHandler(function(e) { alert('エラー: ' + e.message); })
+        .removeTriggers();
+    }
+
+    function initSheetsAction() {
+      if (!confirm('シートを初期化します。既存のシートとデータには影響しません。よろしいですか？')) return;
+      google.script.run
+        .withSuccessHandler(function() { alert('シートの初期化が完了しました'); })
+        .withFailureHandler(function(e) { alert('エラー: ' + e.message); })
+        .initializeSheets();
+    }
+
+    // 初期表示
+    switchTab('dashboard');
+  </script>
+</body>
+</html>

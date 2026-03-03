@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クーポン</title>
+  <?!= include('html/common/style'); ?>
+</head>
+<body>
+  <div class="public-container">
+    <div class="public-header">
+      <div class="store-name" id="storeName"></div>
+    </div>
+
+    <!-- ローディング -->
+    <div id="loadingArea" class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:12px;">クーポン情報を読み込み中...</p>
+    </div>
+
+    <!-- エラー -->
+    <div id="errorArea" style="display:none;text-align:center;padding:40px 0;">
+      <p style="font-size:48px;">😞</p>
+      <h2 style="margin-top:12px;color:#C62828;" id="errorTitle">エラー</h2>
+      <p style="margin-top:8px;color:#888;" id="errorMessage"></p>
+    </div>
+
+    <!-- クーポン表示 -->
+    <div id="couponArea" style="display:none;">
+      <div class="coupon-card" id="couponCard">
+        <!-- ステータスオーバーレイ -->
+        <div id="statusOverlay" class="status-overlay" style="display:none;">
+          <div class="status-stamp" id="statusStamp"></div>
+        </div>
+
+        <!-- クーポンヘッダー -->
+        <div class="coupon-card-header" id="couponHeader">
+          <h2 id="couponName"></h2>
+          <div class="coupon-value" id="couponValue"></div>
+        </div>
+
+        <!-- クーポンボディ -->
+        <div class="coupon-card-body">
+          <p class="coupon-description" id="couponDescription"></p>
+          <p class="coupon-expiry" id="couponExpiry"></p>
+          <p style="font-size:12px;color:#bbb;margin-top:8px;" id="memberName"></p>
+        </div>
+      </div>
+
+      <!-- スワイプ / 利用エリア（unused時のみ表示） -->
+      <div id="useArea" style="display:none;">
+        <!-- customer_swipe の場合 -->
+        <div id="swipeSection" style="display:none;">
+          <div class="swipe-area">
+            <div class="swipe-guide">
+              <span class="arrow">→</span>
+              <span>スワイプしてクーポンを使う</span>
+              <span class="arrow">→</span>
+            </div>
+            <button class="use-btn" id="useButton"
+                    ontouchstart="startHold(event)" ontouchend="endHold(event)"
+                    onmousedown="startHold(event)" onmouseup="endHold(event)" onmouseleave="endHold(event)">
+              <div class="progress-bar" id="progressBar"></div>
+              <span style="position:relative;z-index:1;">長押しで利用する</span>
+            </button>
+            <p style="font-size:12px;color:#999;margin-top:8px;text-align:center;">
+              ボタンを2秒間長押ししてください
+            </p>
+          </div>
+        </div>
+
+        <!-- staff_operate の場合 -->
+        <div id="staffSection" style="display:none;">
+          <div class="staff-notice">
+            このクーポンをスタッフにお見せください
+          </div>
+        </div>
+      </div>
+
+      <!-- 利用完了メッセージ -->
+      <div id="usedMessage" style="display:none;text-align:center;padding:20px;">
+        <div class="success-check"></div>
+        <h3 style="margin-top:12px;color:#2E7D32;">クーポンを利用しました！</h3>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var couponToken = '<?= token ?>';
+    var holdTimer = null;
+    var holdProgress = 0;
+    var isHolding = false;
+    var couponData = null;
+
+    // 初期読み込み
+    google.script.run
+      .withSuccessHandler(function(result) {
+        document.getElementById('loadingArea').style.display = 'none';
+
+        if (result.error) {
+          showCouponError('クーポンが見つかりません', result.error);
+          return;
+        }
+
+        couponData = result;
+        renderCoupon(result);
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('loadingArea').style.display = 'none';
+        showCouponError('読み込みエラー', err.message);
+      })
+      .getCouponByToken(couponToken);
+
+    // 店名取得
+    google.script.run.withSuccessHandler(function(result) {
+      if (result && result.settings) {
+        document.getElementById('storeName').textContent = result.settings.store_name || '';
+      }
+    }).getAllSettings();
+
+    function renderCoupon(data) {
+      var coupon = data.coupon;
+      var issued = data.issued;
+      var member = data.member;
+
+      document.getElementById('couponArea').style.display = 'block';
+
+      // ヘッダー色
+      var headerEl = document.getElementById('couponHeader');
+      headerEl.style.background = coupon.design_color || '#F8BBD0';
+
+      // クーポン情報
+      document.getElementById('couponName').textContent = coupon.coupon_name;
+      document.getElementById('couponValue').textContent = data.displayValue;
+      document.getElementById('couponDescription').textContent = coupon.description || '';
+
+      // 有効期限
+      if (issued.expires_at) {
+        var expiry = new Date(issued.expires_at);
+        document.getElementById('couponExpiry').textContent =
+          '有効期限: ' + expiry.getFullYear() + '/' +
+          ('0' + (expiry.getMonth() + 1)).slice(-2) + '/' +
+          ('0' + expiry.getDate()).slice(-2);
+      }
+
+      // 会員名
+      if (member) {
+        document.getElementById('memberName').textContent = member.name + ' 様';
+      }
+
+      // ステータス別表示
+      if (issued.status === 'unused') {
+        document.getElementById('useArea').style.display = 'block';
+        if (coupon.usage_flow === 'customer_swipe') {
+          document.getElementById('swipeSection').style.display = 'block';
+        } else {
+          document.getElementById('staffSection').style.display = 'block';
+        }
+      } else if (issued.status === 'used') {
+        showStatusOverlay('used', 'USED');
+        if (issued.used_at) {
+          var usedDate = new Date(issued.used_at);
+          document.getElementById('couponExpiry').textContent =
+            '利用日: ' + usedDate.getFullYear() + '/' +
+            ('0' + (usedDate.getMonth() + 1)).slice(-2) + '/' +
+            ('0' + usedDate.getDate()).slice(-2) + ' ' +
+            ('0' + usedDate.getHours()).slice(-2) + ':' +
+            ('0' + usedDate.getMinutes()).slice(-2);
+        }
+      } else if (issued.status === 'expired') {
+        showStatusOverlay('expired', 'EXPIRED');
+      }
+    }
+
+    function showStatusOverlay(type, text) {
+      var overlay = document.getElementById('statusOverlay');
+      overlay.className = 'status-overlay ' + type;
+      overlay.style.display = 'flex';
+      document.getElementById('statusStamp').textContent = text;
+    }
+
+    function showCouponError(title, message) {
+      document.getElementById('errorArea').style.display = 'block';
+      document.getElementById('errorTitle').textContent = title;
+      document.getElementById('errorMessage').textContent = message;
+    }
+
+    // 長押し処理
+    function startHold(e) {
+      e.preventDefault();
+      if (isHolding) return;
+      isHolding = true;
+      holdProgress = 0;
+
+      holdTimer = setInterval(function() {
+        holdProgress += 5;
+        document.getElementById('progressBar').style.width = holdProgress + '%';
+
+        if (holdProgress >= 100) {
+          clearInterval(holdTimer);
+          isHolding = false;
+          confirmUse();
+        }
+      }, 100);
+    }
+
+    function endHold(e) {
+      if (e) e.preventDefault();
+      if (holdTimer) {
+        clearInterval(holdTimer);
+        holdTimer = null;
+      }
+      isHolding = false;
+      holdProgress = 0;
+      document.getElementById('progressBar').style.width = '0%';
+    }
+
+    function confirmUse() {
+      if (confirm('このクーポンを利用しますか？\n※一度利用すると元に戻せません')) {
+        executeCouponUse();
+      }
+    }
+
+    function executeCouponUse() {
+      var btn = document.getElementById('useButton');
+      btn.disabled = true;
+      btn.querySelector('span').textContent = '処理中...';
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            document.getElementById('useArea').style.display = 'none';
+            document.getElementById('usedMessage').style.display = 'block';
+            showStatusOverlay('used', 'USED');
+          } else {
+            alert(result.error || '利用に失敗しました');
+            btn.disabled = false;
+            btn.querySelector('span').textContent = '長押しで利用する';
+          }
+        })
+        .withFailureHandler(function(err) {
+          alert('エラーが発生しました: ' + err.message);
+          btn.disabled = false;
+          btn.querySelector('span').textContent = '長押しで利用する';
+        })
+        .useCoupon(couponToken, 'customer');
+    }
+
+    // スワイプ対応
+    (function() {
+      var card = document.getElementById('couponCard');
+      var startX = 0;
+      var currentX = 0;
+      var swiping = false;
+
+      card.addEventListener('touchstart', function(e) {
+        startX = e.touches[0].clientX;
+        swiping = true;
+      });
+
+      card.addEventListener('touchmove', function(e) {
+        if (!swiping) return;
+        currentX = e.touches[0].clientX;
+        var diff = currentX - startX;
+        if (diff > 0) {
+          card.style.transform = 'translateX(' + Math.min(diff, 100) + 'px)';
+          card.style.opacity = 1 - Math.min(diff / 300, 0.3);
+        }
+      });
+
+      card.addEventListener('touchend', function(e) {
+        if (!swiping) return;
+        swiping = false;
+        var diff = currentX - startX;
+        card.style.transform = '';
+        card.style.opacity = '';
+
+        if (diff > 150 && couponData && couponData.issued.status === 'unused' &&
+            couponData.coupon.usage_flow === 'customer_swipe') {
+          confirmUse();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
