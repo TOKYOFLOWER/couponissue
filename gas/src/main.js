@@ -80,7 +80,7 @@ function doPost(e) {
     if (action === 'registerMember') {
       result = registerMemberPublic(data);
     } else if (action === 'useCoupon') {
-      result = useCouponByCustomer(body.token || '');
+      result = useCouponByCustomer(data.token || body.token || '');
     }
     // 管理API（認証チェック）
     else if (!isValidApiKey(apiKey)) {
