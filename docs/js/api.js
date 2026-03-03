@@ -88,6 +88,18 @@ function formatDateTimeDisplay(dateStr) {
   } catch(e) { return dateStr; }
 }
 
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return '';
+  try {
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+  } catch(e) { return dateStr; }
+}
+
 function showAlert(containerId, type, message) {
   var el = document.getElementById(containerId);
   if (!el) return;

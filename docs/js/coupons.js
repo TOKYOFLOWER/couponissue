@@ -27,7 +27,7 @@ function renderCouponsTable(coupons) {
     html = '<tr><td colspan="8" style="text-align:center;color:#999;">クーポンがありません</td></tr>';
   } else {
     coupons.forEach(function(c) {
-      var expiry = c.expiry_type === 'relative' ? (c.expiry_days + '日間') : (c.expiry_date || '-');
+      var expiry = c.expiry_type === 'relative' ? (c.expiry_days + '日間') : (c.expiry_date ? formatDateDisplay(c.expiry_date) : '-');
       var isActive = (c.is_active === true || c.is_active === 'TRUE');
       html += '<tr>' +
         '<td>' + escapeHtml(c.coupon_id) + '</td>' +
