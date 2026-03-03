@@ -1,98 +1,83 @@
 # クーポン発行＆会員管理システム
 
 花店向けのクーポン発行・会員管理・メルマガ配信システムです。
-GAS（Google Apps Script）+ Google Sheets で構築されています。
+
+## アーキテクチャ
+
+- **フロントエンド**: GitHub Pages（静的HTML/CSS/JS）
+- **バックエンド**: Google Apps Script（JSON API）
+- **データベース**: Google Sheets
+
+フロントエンドとバックエンドは完全分離。GASはJSON APIのみ提供。
 
 ## セットアップ手順
 
 ### 1. 前提条件
-- Node.js がインストール済み
-- clasp がインストール済み（`npm install -g @google/clasp`）
-- Google アカウントで clasp にログイン済み（`clasp login`）
+- Node.js + clasp (`npm install -g @google/clasp`)
+- `clasp login` 済み
+- Google Sheets でスプレッドシート作成済み
 
-### 2. GASプロジェクト作成
+### 2. GASバックエンド設定
+
 ```bash
-# プロジェクトディレクトリに移動
-cd X:\projects\couponissue
+cd gas
 
-# GASプロジェクトを作成（または既存のスクリプトIDを使用）
-clasp create --type webapp --title "クーポン管理システム"
-```
+# GASプロジェクト作成（初回のみ）
+clasp create --title "クーポンAPI" --type standalone
 
-### 3. スプレッドシート設定
-1. Google Sheets で新しいスプレッドシートを作成
-2. スプレッドシートのIDをコピー（URLの `/d/` と `/edit` の間の文字列）
-3. `src/config.js` の `SPREADSHEET_ID` に設定
+# src/config.js を編集
+# - SPREADSHEET_ID: スプレッドシートのID
+# - API_KEY: ランダムなUUID文字列に変更
 
-### 4. 管理者設定
-`src/config.js` の `ADMIN_EMAILS` に管理者のGoogleアカウントメールを追加：
-```javascript
-var ADMIN_EMAILS = [
-  'your-email@gmail.com'
-];
-```
-
-### 5. デプロイ
-```bash
 # GASにプッシュ
-clasp push
+clasp push --force
 
-# GASエディタを開く
-clasp open
+# GASエディタで initializeSheets を実行（シート自動作成）
+
+# Web Appとしてデプロイ
+clasp deploy --description "初回デプロイ"
 ```
 
-### 6. 初期化
-1. GASエディタで `initializeSheets` 関数を実行（シートとヘッダーが自動作成されます）
-2. Web Appとしてデプロイ:
-   - 「デプロイ」→「新しいデプロイ」
-   - 種類: ウェブアプリ
-   - 実行ユーザー: 自分
-   - アクセスできるユーザー: 全員
-3. デプロイURLをコピーし、管理画面の「設定」→「Web App URL」に登録
+### 3. フロントエンド設定
 
-### 7. トリガー設定
-管理画面の「設定」タブから「トリガー設定」ボタンをクリック、または GASエディタで `setupTriggers` を実行。
+```bash
+# docs/js/config.example.js を docs/js/config.js にコピー
+cp docs/js/config.example.js docs/js/config.js
 
-## 機能一覧
+# docs/js/config.js を編集
+# - API_URL: GAS Web AppのデプロイURL
+# - API_KEY: GAS側のAPI_KEYと同じ値
+```
 
-### 会員管理
-- スタッフによる会員登録・編集
-- お客様向けWeb登録フォーム
-- 名前・電話・メールによる検索
-- ステータス管理（アクティブ/無効/配信停止）
+### 4. GitHub Pages 有効化
+1. GitHubリポジトリの Settings → Pages
+2. Source: `main` branch, `/docs` folder
+3. Save
 
-### クーポン管理
-- クーポンマスタ作成（割引率/固定金額/特典/ポイント）
-- 期限設定（相対日数/絶対日付）
-- 個別・一括のクーポン発行
-- お客様によるスワイプ利用 or スタッフ操作
-- 二重利用防止（排他制御）
+### 5. APIキー生成
+GASエディタのコンソールで以下を実行してAPIキーを生成：
+```javascript
+Logger.log(Utilities.getUuid());
+```
+出力されたUUIDを `gas/src/config.js` の `API_KEY` と `docs/js/config.js` の `API_KEY` の両方に設定。
 
-### メルマガ配信
-- 一斉配信（opt-in会員全員）
-- 個別配信
-- テンプレート変数対応
-- 配信停止リンク自動付与
-
-### 誕生日自動配信
-- 毎月指定日に誕生月の会員へクーポン自動発行・メール送信
-- 重複配信防止
-
-### ポイント管理
-- ポイント付与・利用
-- 履歴管理
+### 6. トリガー設定
+GASエディタで `setupTriggers` を実行。
+- 毎日 9:00: 誕生日クーポン自動配信
+- 毎日 0:00: 期限切れクーポン処理
 
 ## URL一覧
 
 | ページ | URL |
 |--------|-----|
-| 管理画面 | `{Web App URL}` |
-| 会員登録 | `{Web App URL}?page=register` |
-| クーポン表示 | `{Web App URL}?page=coupon&token={TOKEN}` |
+| 管理画面 | `https://TOKYOFLOWER.github.io/couponissue/` |
+| 会員管理 | `https://TOKYOFLOWER.github.io/couponissue/members.html` |
+| クーポン管理 | `https://TOKYOFLOWER.github.io/couponissue/coupons.html` |
+| メルマガ | `https://TOKYOFLOWER.github.io/couponissue/mail.html` |
+| 会員登録 | `https://TOKYOFLOWER.github.io/couponissue/register.html` |
+| クーポン表示 | `https://TOKYOFLOWER.github.io/couponissue/coupon.html?token=XXX` |
 
 ## テンプレート変数
-
-メール本文で使用可能な変数:
 
 | 変数 | 説明 |
 |------|------|
@@ -101,16 +86,18 @@ clasp open
 | `{{store_name}}` | 店舗名 |
 | `{{unsubscribe_url}}` | 配信停止URL |
 
+## セキュリティ
+- 管理API: APIキー認証（`config.js` は `.gitignore` 対象）
+- 公開API: トークンベース認証
+- クーポン利用: LockServiceで排他制御
+- GitHub Pages: HTTPS（デフォルト）
+
 ## ファイル構成
 
 ```
-src/         - バックエンドロジック（GAS）
-html/admin/  - 管理画面HTML
-html/public/ - お客様向けHTML
-html/common/ - 共通CSS
+gas/src/    - GASバックエンド（JSON API）
+docs/       - GitHub Pagesフロントエンド
+docs/css/   - スタイルシート
+docs/js/    - JavaScriptモジュール
+docs/img/   - 画像アセット
 ```
-
-## 注意事項
-- GASの実行制限（6分/実行）があるため、大量メール送信時は分割処理を検討してください
-- メール送信はGmailの1日あたりの送信上限（無料: 100通/日）に制限されます
-- スプレッドシートのデータ量が増えると処理が遅くなる場合があります

@@ -3,25 +3,236 @@
 ## プロジェクトパス
 `X:\projects\couponissue`
 
-## プロジェクト概要
-GAS（Google Apps Script）+ Google Sheets ベースの花店向けクーポン発行・会員管理・メルマガ配信システムを構築する。
-clasp で管理し、Git でバージョン管理する。
+## アーキテクチャ
+- **フロントエンド**: GitHub Pages（静的HTML/CSS/JS）
+- **バックエンド**: Google Apps Script（JSON API）
+- **データベース**: Google Sheets
+
+フロントエンドとバックエンドを完全に分離する。
+GAS は JSON API のみを提供し、HTML は一切返さない。
+フロントエンドは GitHub Pages でホストし、fetch() で GAS API を呼び出す。
 
 ## 重要ルール
 - **確認なしで最後まで完成させること**。途中で質問せず、合理的なデフォルトで判断して進める。
 - すべてのファイルを実際に作成し、動作する状態にする。
 - GAS の制約（6分制限、グローバル関数のみ、import/export不可）を厳守する。
-- HTML/CSS/JS は GAS の HtmlService 用にインラインで記述する。
-- clasp 用の `.clasp.json` と `appsscript.json` を含める。
+- GAS は doGet/doPost で JSON のみを返す（ContentService.createTextOutput + MimeType.JSON）。
+- フロントエンドは純粋な HTML/CSS/JS（フレームワーク不使用、シンプルに）。
 - モバイルファースト（お客様向け画面はスマホ最適化）。
 - 日本語UIで構築する。
 
-## 技術スタック
-- Google Apps Script (V8 ランタイム)
-- Google Sheets（データベース）
-- clasp（デプロイ管理）
-- GAS Web App（フロントエンド）
-- Git（バージョン管理）
+---
+
+## ディレクトリ構成
+
+```
+X:\projects\couponissue\
+├── gas\                          # GAS バックエンド（clasp管理）
+│   ├── .clasp.json
+│   ├── .claspignore
+│   ├── appsscript.json
+│   └── src\
+│       ├── main.js               # doGet / doPost エントリーポイント
+│       ├── config.js             # 定数・シート名・設定
+│       ├── utils.js              # UUID、日付、シートCRUD
+│       ├── auth.js               # 管理者認証（APIキー方式）
+│       ├── memberService.js      # 会員CRUD
+│       ├── couponService.js      # クーポンマスタCRUD
+│       ├── couponIssueService.js # クーポン発行・利用処理
+│       ├── mailService.js        # メール送信
+│       ├── pointService.js       # ポイント管理
+│       └── triggerService.js     # 自動トリガー
+├── docs\                         # GitHub Pages フロントエンド
+│   ├── index.html                # 管理画面トップ（ダッシュボード）
+│   ├── members.html              # 会員管理
+│   ├── coupons.html              # クーポン管理
+│   ├── mail.html                 # メルマガ配信
+│   ├── register.html             # 会員登録（お客様向け）
+│   ├── coupon.html               # クーポン表示＆スワイプ（お客様向け）
+│   ├── css\
+│   │   └── style.css             # 共通CSS
+│   ├── js\
+│   │   ├── config.js             # API URL設定
+│   │   ├── api.js                # GAS API呼び出しヘルパー
+│   │   ├── admin.js              # 管理画面共通ロジック
+│   │   ├── dashboard.js          # ダッシュボード
+│   │   ├── members.js            # 会員管理ロジック
+│   │   ├── coupons.js            # クーポン管理ロジック
+│   │   ├── mail.js               # メルマガ配信ロジック
+│   │   ├── register.js           # 会員登録ロジック
+│   │   └── coupon-view.js        # クーポン表示＆スワイプロジック
+│   └── img\
+│       └── logo.svg              # ロゴ（花のアイコン、SVGで作成）
+├── .gitignore
+├── CLAUDE.md
+└── README.md
+```
+
+---
+
+## GAS バックエンド API 設計
+
+### 認証方式
+- **管理者API**: リクエストヘッダー or パラメータに `apiKey` を含める。config.js に `API_KEY` を定義。
+- **公開API**（会員登録、クーポン表示）: apiKey 不要。トークンベースで認証。
+- GAS の doGet/doPost は CORS の制約がないため、GitHub Pages から直接 fetch 可能。
+  ただし GAS Web App は POST リクエストのレスポンスが opaque になる場合があるため、
+  **doGet でクエリパラメータ `action` を使うアプローチ**も併用する。
+
+### API エンドポイント設計
+
+すべて doGet / doPost の `action` パラメータで振り分ける。
+
+#### doGet（参照系 + 公開系）
+```
+GET ?action=dashboard&apiKey=XXX
+  → ダッシュボード情報（会員数、誕生日、未使用クーポン数、直近ログ）
+
+GET ?action=members&apiKey=XXX&search=キーワード&page=1&limit=20
+  → 会員一覧（検索・ページネーション対応）
+
+GET ?action=member&apiKey=XXX&id=MEMBER_ID
+  → 会員詳細
+
+GET ?action=couponMasters&apiKey=XXX
+  → クーポンマスタ一覧
+
+GET ?action=couponMaster&apiKey=XXX&id=COUPON_ID
+  → クーポンマスタ詳細
+
+GET ?action=issuedCoupons&apiKey=XXX&couponId=XXX&status=unused
+  → 発行済みクーポン一覧（フィルタ対応）
+
+GET ?action=mailLogs&apiKey=XXX&page=1&limit=20
+  → メール配信ログ
+
+GET ?action=pointHistory&apiKey=XXX&memberId=MEMBER_ID
+  → ポイント履歴
+
+GET ?action=settings&apiKey=XXX
+  → システム設定一覧
+
+--- 以下は公開API（apiKey不要）---
+
+GET ?action=couponView&token=TOKEN
+  → クーポン表示データ（お客様向け、トークン認証）
+
+GET ?action=unsubscribe&memberId=MEMBER_ID
+  → メール配信停止処理
+```
+
+#### doPost（更新系）
+すべて JSON body で送信。管理系は body 内に `apiKey` を含める。
+
+```json
+POST body:
+{
+  "action": "createMember",
+  "apiKey": "XXX",
+  "data": { "name": "...", "email": "...", ... }
+}
+
+POST actions 一覧:
+--- 管理者API（apiKey必須）---
+createMember      → 会員登録（スタッフ）
+updateMember      → 会員情報更新
+deleteMember      → 会員削除（論理削除: status→inactive）
+createCouponMaster → クーポンマスタ作成
+updateCouponMaster → クーポンマスタ更新
+issueCoupons      → クーポン一括発行（対象会員IDの配列）
+useCouponByStaff  → スタッフによるクーポン利用処理
+sendMail          → メール送信（一斉/個別）
+adjustPoints      → ポイント手動調整
+updateSettings    → 設定更新
+initializeSheets  → シート初期化（初回のみ）
+
+--- 公開API（apiKey不要）---
+registerMember    → 会員登録（お客様Web登録）
+useCoupon         → クーポン利用（お客様スワイプ、token必須）
+```
+
+### API レスポンス形式
+```json
+// 成功時
+{
+  "success": true,
+  "data": { ... }
+}
+
+// エラー時
+{
+  "success": false,
+  "error": "エラーメッセージ"
+}
+```
+
+### GAS doGet / doPost 実装パターン
+
+```javascript
+function doGet(e) {
+  var action = e.parameter.action || '';
+  var apiKey = e.parameter.apiKey || '';
+  var result;
+
+  try {
+    // 公開APIの振り分け
+    if (action === 'couponView') {
+      result = getCouponView(e.parameter.token);
+    } else if (action === 'unsubscribe') {
+      result = processUnsubscribe(e.parameter.memberId);
+    }
+    // 管理APIの振り分け（認証チェック）
+    else if (!isValidApiKey(apiKey)) {
+      result = { success: false, error: '認証エラー' };
+    } else {
+      switch (action) {
+        case 'dashboard': result = getDashboard(); break;
+        case 'members': result = getMembers(e.parameter); break;
+        // ... 他のアクション
+        default: result = { success: false, error: '不明なアクション' };
+      }
+    }
+  } catch (err) {
+    result = { success: false, error: err.message };
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  var body = JSON.parse(e.postData.contents);
+  var action = body.action || '';
+  var apiKey = body.apiKey || '';
+  var data = body.data || {};
+  var result;
+
+  try {
+    // 公開APIの振り分け
+    if (action === 'registerMember') {
+      result = registerMemberPublic(data);
+    } else if (action === 'useCoupon') {
+      result = useCouponByCustomer(body.token);
+    }
+    // 管理APIの振り分け
+    else if (!isValidApiKey(apiKey)) {
+      result = { success: false, error: '認証エラー' };
+    } else {
+      switch (action) {
+        case 'createMember': result = createMember(data); break;
+        case 'updateMember': result = updateMember(data); break;
+        // ... 他のアクション
+        default: result = { success: false, error: '不明なアクション' };
+      }
+    }
+  } catch (err) {
+    result = { success: false, error: err.message };
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
 
 ---
 
@@ -50,7 +261,7 @@ clasp で管理し、Git でバージョン管理する。
 | coupon_id | String | `CPN-YYYYMMDD-NNN` |
 | coupon_name | String | クーポン名 |
 | coupon_type | String | `percent` / `fixed` / `benefit` / `point` |
-| coupon_value | String | 値（例: `10`, `500`, `ラッピング無料`, `100`） |
+| coupon_value | String | 値 |
 | description | String | 説明文 |
 | expiry_type | String | `relative` / `absolute` |
 | expiry_days | Number | 相対期限の日数 |
@@ -100,180 +311,183 @@ clasp で管理し、Git でバージョン管理する。
 | created_at | String | 日時 |
 
 ### シート6: `settings`（システム設定）
-| カラム | 型 | 説明 |
-|--------|------|------|
-| key | String | 設定キー |
-| value | String | 設定値 |
-
-初期設定値:
-- `store_name`: 銀座東京フラワー
-- `store_email`: （店舗メール）
-- `welcome_coupon_id`: （初回クーポンID、空欄可）
-- `birthday_coupon_id`: （誕生日クーポンID、空欄可）
-- `birthday_send_day`: `1`（誕生月の何日に送るか）
-- `webapp_url`: （デプロイ後に設定）
+| key | value（初期値） |
+|-----|-------|
+| store_name | 銀座東京フラワー |
+| store_email | （空欄） |
+| welcome_coupon_id | （空欄） |
+| birthday_coupon_id | （空欄） |
+| birthday_send_day | 1 |
+| webapp_url | （空欄 → GitHub PagesのURL） |
+| api_url | （空欄 → GAS Web AppのURL） |
 
 ---
 
-## ファイル構成
+## フロントエンド詳細
 
+### docs/js/config.js
+```javascript
+// GAS Web App の URL（デプロイ後に設定）
+var CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/XXXXX/exec',
+  API_KEY: 'YOUR_API_KEY_HERE',
+  SITE_NAME: '銀座東京フラワー'
+};
 ```
-X:\projects\couponissue\
-├── .clasp.json
-├── .claspignore
-├── .gitignore
-├── appsscript.json
-├── CLAUDE.md
-├── src\
-│   ├── main.js              # doGet / doPost ルーティング
-│   ├── config.js             # 定数・シート名・設定読み込み
-│   ├── utils.js              # UUID生成、日付ヘルパー、シートCRUD
-│   ├── auth.js               # 管理者認証チェック
-│   ├── memberService.js      # 会員CRUD
-│   ├── couponService.js      # クーポンマスタCRUD
-│   ├── couponIssueService.js # クーポン発行・利用処理
-│   ├── mailService.js        # メール送信（一斉/個別/誕生日）
-│   ├── pointService.js       # ポイント付与・利用・履歴
-│   └── triggerService.js     # 自動トリガー（誕生日配信、期限切れ処理）
-├── html\
-│   ├── admin\
-│   │   ├── index.html        # 管理画面（SPA、タブ切り替え）
-│   │   ├── dashboard.html    # ダッシュボード部品
-│   │   ├── members.html      # 会員管理部品
-│   │   ├── coupons.html      # クーポン管理部品
-│   │   └── mail.html         # メルマガ部品
-│   ├── public\
-│   │   ├── register.html     # 会員登録フォーム（お客様向け）
-│   │   └── coupon.html       # クーポン表示＆スワイプ画面
-│   └── common\
-│       └── style.html        # 共通CSS
-└── README.md
+
+### docs/js/api.js（API呼び出しヘルパー）
+```javascript
+// GAS API への GET リクエスト
+async function apiGet(action, params = {}) {
+  var url = new URL(CONFIG.API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('apiKey', CONFIG.API_KEY);
+  Object.keys(params).forEach(key => url.searchParams.set(key, params[key]));
+
+  var response = await fetch(url.toString());
+  return await response.json();
+}
+
+// GAS API への POST リクエスト
+// 注意: GAS の doPost は fetch で呼ぶと opaque response になる場合がある。
+// 対策として mode: 'no-cors' は使わず、以下のパターンで対応:
+// 方法1: Google Apps Script の doPost は redirect を返すため、
+//        fetch の redirect: 'follow' で対応できる場合がある。
+// 方法2: doGet に action パラメータとして POST データを URL エンコードして送る。
+// ここでは方法2をフォールバックとして実装する。
+async function apiPost(action, data = {}) {
+  try {
+    var response = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: action,
+        apiKey: CONFIG.API_KEY,
+        data: data
+      })
+    });
+    return await response.json();
+  } catch (e) {
+    // POST が失敗する場合は GET フォールバック
+    var url = new URL(CONFIG.API_URL);
+    url.searchParams.set('action', action);
+    url.searchParams.set('apiKey', CONFIG.API_KEY);
+    url.searchParams.set('data', JSON.stringify(data));
+    var response = await fetch(url.toString());
+    return await response.json();
+  }
+}
+
+// 公開API（apiKey不要）
+async function apiPublicGet(action, params = {}) {
+  var url = new URL(CONFIG.API_URL);
+  url.searchParams.set('action', action);
+  Object.keys(params).forEach(key => url.searchParams.set(key, params[key]));
+  var response = await fetch(url.toString());
+  return await response.json();
+}
+
+async function apiPublicPost(action, data = {}) {
+  try {
+    var response = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: action, data: data })
+    });
+    return await response.json();
+  } catch (e) {
+    var url = new URL(CONFIG.API_URL);
+    url.searchParams.set('action', action);
+    url.searchParams.set('data', JSON.stringify(data));
+    var response = await fetch(url.toString());
+    return await response.json();
+  }
+}
+```
+
+### GitHub Pages のURL構成
+```
+https://TOKYOFLOWER.github.io/couponissue/              → 管理画面（ダッシュボード）
+https://TOKYOFLOWER.github.io/couponissue/members.html   → 会員管理
+https://TOKYOFLOWER.github.io/couponissue/coupons.html   → クーポン管理
+https://TOKYOFLOWER.github.io/couponissue/mail.html       → メルマガ配信
+https://TOKYOFLOWER.github.io/couponissue/register.html   → 会員登録（お客様向け）
+https://TOKYOFLOWER.github.io/couponissue/coupon.html?token=XXX → クーポン表示
 ```
 
 ---
 
 ## 機能詳細
 
-### 1. ルーティング（main.js）
-
-```javascript
-function doGet(e) {
-  var page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'admin';
-  var token = (e && e.parameter && e.parameter.token) ? e.parameter.token : '';
-
-  // お客様向けページ（認証不要）
-  if (page === 'coupon' && token) {
-    return serveCouponPage(token);
-  }
-  if (page === 'register') {
-    return serveRegisterPage();
-  }
-
-  // 管理画面（認証必要）
-  if (!isAdmin()) {
-    return HtmlService.createHtmlOutput('<h2>アクセス権限がありません</h2>');
-  }
-  return serveAdminPage();
-}
-
-function doPost(e) {
-  try {
-    var action = JSON.parse(e.postData.contents);
-    var result = routeAction(action);
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
-}
-```
-
-### 2. 会員管理
-- **スタッフ登録**: 管理画面フォームから登録。member_id は UUID 自動生成。
-- **Web登録**: 公開URLフォーム。登録後にウェルカムメール送信。settings の welcome_coupon_id が設定されていれば初回クーポン自動発行。
+### 1. 会員管理
+- **スタッフ登録**（管理画面 members.html）: フォームから登録。apiPost('createMember', data)。
+- **Web登録**（register.html）: お客様向け公開フォーム。apiPublicPost('registerMember', data)。登録後にウェルカムメール自動送信（GAS側）。
 - **検索**: 名前・電話・メールで部分一致検索。
-- **編集**: ステータス変更、メモ追記、opt-out処理。
+- **編集**: モーダルでインライン編集。ステータス変更、メモ追記。
 
-### 3. クーポン発行＆利用
-- **マスタ作成**: タイプ（割引率/固定金額/特典/ポイント）、期限（相対/絶対）、利用フロー（客スワイプ/スタッフ操作）を設定。
-- **発行**: 対象会員を選択 → coupon_issued にレコード追加 → token（UUID）生成 → URLをメール送信。
-- **クーポン表示画面（coupon.html）**:
-  - token パラメータで coupon_issued を照合
-  - 有効期限チェック（期限切れなら `expired` に更新して表示）
-  - ステータスに応じた表示:
-    - `unused`: クーポンカード + スワイプ操作（usage_flow が `customer_swipe` の場合）or 「スタッフにお見せください」表示
-    - `used`: 「利用済み」表示（グレーアウト、利用日時表示）
-    - `expired`: 「期限切れ」表示
-  - **スワイプ操作**: 左→右スワイプ or 「利用する」ボタン長押し → 確認ダイアログ → google.script.run でサーバー側更新 → 画面変化
-  - **二重利用防止**: LockService.getScriptLock() で排他制御。サーバー側でステータス再チェック
+### 2. クーポン発行＆利用
+- **マスタ作成**（coupons.html）: タイプ・期限・利用フローを設定してフォーム送信。
+- **発行**: 対象会員を選択 → issueCoupons API → token生成 → メール送信（GAS側で実行）。
+- **クーポン表示画面**（coupon.html）:
+  - URLパラメータ `?token=XXX` で apiPublicGet('couponView', {token}) を呼び出し。
+  - レスポンスに基づいてクーポンカードを描画。
+  - ステータス表示: unused（利用可能）/ used（利用済み）/ expired（期限切れ）。
+  - **スワイプ利用**: TouchEvent でスワイプ検知 → 確認ダイアログ → apiPublicPost('useCoupon', {token}) → 画面更新。
+  - **二重利用防止**: GAS側で LockService + ステータス再チェック。
 
-### 4. メルマガ配信
-- **テンプレート変数**: `{{name}}`, `{{coupon_url}}`, `{{store_name}}`, `{{unsubscribe_url}}`
-- **一斉配信**: opt-in 会員全員に送信。1通ずつ GmailApp.sendEmail() で個別送信
-- **個別配信**: 会員を選んでクーポン付きメール
-- **誕生日自動配信**: 毎日トリガーで当月誕生日の会員にクーポン自動発行＆メール。mail_log で重複チェック
-- **配信停止**: メール本文の配信停止リンク（トークン付きURL）→ opt-out処理
+### 3. メルマガ配信（mail.html）
+- テンプレート変数: `{{name}}`, `{{coupon_url}}`, `{{store_name}}`, `{{unsubscribe_url}}`
+- 一斉配信: sendMail API（type: 'magazine'）
+- 個別配信: sendMail API（type: 'individual', memberIds: [...]）
+- 誕生日自動配信: GAS トリガーで毎日実行（フロントエンド関与なし）
 
-### 5. ポイント機能
-- クーポンタイプが `point` の場合、利用時に会員の available_points / total_points に加算
-- ポイント利用は管理画面から手動調整
-- point_history に全履歴記録
+### 4. ポイント機能
+- クーポンタイプ `point` の利用時にGAS側で自動加算。
+- 管理画面から手動調整: adjustPoints API。
+- 会員詳細で履歴表示。
 
-### 6. 自動トリガー
-- `setupTriggers()` 関数:
-  - まず `removeTriggers()` で既存トリガーを全削除（重複防止）
-  - 毎日9:00 JST: 誕生日クーポン配信チェック（`runBirthdayAutoSend`）
-  - 毎日0:00 JST: 期限切れクーポンのステータス更新（`runExpireCoupons`）
-
-### 7. 管理画面
-- SPA構成（タブ切り替え）。google.script.run でバックエンドと通信
-- ダッシュボード: 会員数、本日誕生日一覧、未使用クーポン数、直近配信ログ
-- レスポンシブだがPC利用を主眼に
-
-### 8. シート初期化関数
-- `initializeSheets()`: 全6シートをヘッダー付きで自動作成
-- settings シートには初期値も投入
-- GASエディタから1回実行するだけでDB構造が完成する
+### 5. GAS 自動トリガー
+- `setupTriggers()`: removeTriggers() → 新規登録:
+  - 毎日 9:00 JST: runBirthdayAutoSend
+  - 毎日 0:00 JST: runExpireCoupons
 
 ---
 
 ## デザインガイドライン
 
-### お客様向け画面（coupon.html, register.html）
-- モバイルファースト（max-width: 480px ベース）
-- クーポンカード: 角丸カード型、design_color を背景に、box-shadow付き
-- スワイプUI: touch イベント対応、スワイプ方向を矢印でガイド表示
-- 利用済み: カード全体をグレーアウト + 大きな「USED」スタンプオーバーレイ
-- 期限切れ: 「EXPIRED」スタンプ
+### 共通
 - フォント: Noto Sans JP（Google Fonts CDN）
-- 配色: 花店らしい柔らかいピンク〜グリーン系をベースに
+- CSS変数で配色管理
+- box-sizing: border-box
 
-### 管理画面
-- クリーンなダッシュボード、上部タブメニュー
-- テーブル表示は横スクロール対応
-- モーダルでフォーム表示（新規登録・編集）
-- 配色: 落ち着いたダークネイビー + ホワイト
+### お客様向け画面（register.html, coupon.html）
+- モバイルファースト（max-width: 480px ベース）
+- 配色: 花店らしい柔らかいピンク（#F8BBD0）〜グリーン（#C8E6C9）
+- クーポンカード: 角丸16px、box-shadow、design_color を背景グラデーション
+- スワイプUI: 右方向スワイプで利用。矢印アニメーションでガイド
+- 利用済み: グレーアウト + 回転した「USED」赤スタンプ
+- 期限切れ: グレーアウト + 「EXPIRED」スタンプ
+
+### 管理画面（index.html, members.html, coupons.html, mail.html）
+- 上部ナビゲーションバー（ダッシュボード / 会員 / クーポン / メルマガ）
+- カード型レイアウト
+- 配色: ダークネイビー（#1a237e）ヘッダー + ホワイト背景
+- テーブルは横スクロール対応（overflow-x: auto）
+- モーダルで登録・編集フォーム
 
 ---
 
-## セキュリティ要件
-- クーポントークンは Utilities.getUuid()
-- 管理画面アクセスは Session.getActiveUser().getEmail() でホワイトリスト確認
-- config.js に ADMIN_EMAILS 配列を定義（デフォルト: 空配列 → 初回設定が必要な旨をREADMEに記載）
-- クーポン利用時は LockService.getScriptLock() で排他制御（最大30秒待機）
-- メール送信は1通ずつ個別送信（BCC不使用）
-- 配信停止リンクにも会員固有のトークン（member_id）を使用
+## clasp 設定
 
----
+### gas/.clasp.json（scriptIdはclasp create後に自動生成）
+```json
+{
+  "scriptId": "YOUR_SCRIPT_ID_HERE",
+  "rootDir": "./src"
+}
+```
 
-## clasp 設定ファイル
-
-### appsscript.json
+### gas/appsscript.json
 ```json
 {
   "timeZone": "Asia/Tokyo",
@@ -287,44 +501,68 @@ function include(filename) {
 }
 ```
 
-### .claspignore
+### gas/.claspignore
 ```
 node_modules/**
 .git/**
-README.md
-CLAUDE.md
-.gitignore
 ```
 
-### .gitignore
+### .gitignore（ルート）
 ```
 node_modules/
-.clasp.json
+gas/.clasp.json
+docs/js/config.js
 ```
+
+**注意: docs/js/config.js は API_KEY を含むため .gitignore に追加。
+代わりに docs/js/config.example.js をコミットし、READMEに設定手順を記載する。**
+
+---
+
+## セキュリティ
+- 管理API: API_KEY によるシンプル認証（config.js の API_KEY と GAS 側の API_KEY を一致させる）
+- API_KEY は Utilities.getUuid() で生成した十分に長いランダム文字列
+- 公開API: トークンベース認証（couponView, useCoupon）or 認証なし（registerMember）
+- クーポン利用: LockService で排他制御
+- config.js は .gitignore で除外（API_KEY漏洩防止）
+- GitHub Pages は HTTPS（デフォルト）
 
 ---
 
 ## 実装の優先順位（この順番で作成すること）
-1. appsscript.json, .claspignore, .gitignore
-2. src/config.js（定数定義、シート名、設定読み込み、ADMIN_EMAILS、SPREADSHEET_ID）
-3. src/utils.js（UUID生成、日付フォーマット、シートCRUDヘルパー、initializeSheets）
-4. src/auth.js（isAdmin関数）
-5. src/main.js（doGet/doPost ルーティング、include関数、servePage各種）
-6. src/memberService.js（会員CRUD全機能）
-7. src/couponService.js（クーポンマスタCRUD）
-8. src/couponIssueService.js（発行・利用・期限切れ処理・LockService排他制御）
-9. src/mailService.js（テンプレートエンジン、一斉/個別/誕生日配信、配信停止処理）
-10. src/pointService.js（ポイント付与・利用・履歴記録）
-11. src/triggerService.js（setupTriggers/removeTriggers、runBirthdayAutoSend、runExpireCoupons）
-12. html/common/style.html（共通CSS）
-13. html/public/register.html（会員登録フォーム）
-14. html/public/coupon.html（クーポン表示＆スワイプ画面）
-15. html/admin/dashboard.html（ダッシュボード部品）
-16. html/admin/members.html（会員管理部品）
-17. html/admin/coupons.html（クーポン管理部品）
-18. html/admin/mail.html（メルマガ配信部品）
-19. html/admin/index.html（管理画面メイン、タブ切り替え、各部品をinclude）
-20. README.md（セットアップ手順、初期設定、運用ガイド）
 
-**全20ファイルを実装し、clasp push で即デプロイ可能な状態にすること。**
+### Phase 1: GAS バックエンド（gas/ 配下）
+1. gas/appsscript.json
+2. gas/.claspignore
+3. gas/src/config.js（API_KEY、SPREADSHEET_ID、シート名、ADMIN設定）
+4. gas/src/utils.js（UUID、日付、シートCRUD、initializeSheets）
+5. gas/src/auth.js（isValidApiKey）
+6. gas/src/main.js（doGet/doPost ルーティング）
+7. gas/src/memberService.js
+8. gas/src/couponService.js
+9. gas/src/couponIssueService.js（LockService排他制御含む）
+10. gas/src/mailService.js
+11. gas/src/pointService.js
+12. gas/src/triggerService.js
+
+### Phase 2: フロントエンド（docs/ 配下）
+13. docs/css/style.css（共通CSS、レスポンシブ、変数定義）
+14. docs/js/config.example.js（API URL と API_KEY のテンプレート）
+15. docs/js/config.js（実際の設定値 → .gitignore対象）
+16. docs/js/api.js（fetch ヘルパー）
+17. docs/img/logo.svg（花のアイコン SVG）
+18. docs/register.html + docs/js/register.js（会員登録）
+19. docs/coupon.html + docs/js/coupon-view.js（クーポン表示＆スワイプ）
+20. docs/js/admin.js（管理画面共通：ナビ、認証チェック、ユーティリティ）
+21. docs/index.html + docs/js/dashboard.js（ダッシュボード）
+22. docs/members.html + docs/js/members.js（会員管理）
+23. docs/coupons.html + docs/js/coupons.js（クーポン管理）
+24. docs/mail.html + docs/js/mail.js（メルマガ配信）
+
+### Phase 3: 設定ファイル
+25. .gitignore（ルート）
+26. README.md（セットアップ手順、GASデプロイ、GitHub Pages設定、初期設定）
+
+**全26ファイルを実装し、clasp push + git push で即稼働可能な状態にすること。**
+**既存の gas/ 配下以外のファイル（以前の src/ や html/ ）は削除すること。**
 **途中で確認・質問はせず、最後まで一気に完成させること。**

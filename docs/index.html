@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ダッシュボード - クーポン管理システム</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="admin-nav">
+    <a href="index.html" class="nav-brand">
+      <img src="img/logo.svg" alt="logo">
+      <h1 id="navTitle">クーポン管理システム</h1>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">ダッシュボード</a></li>
+      <li><a href="members.html">会員管理</a></li>
+      <li><a href="coupons.html">クーポン</a></li>
+      <li><a href="mail.html">メルマガ</a></li>
+    </ul>
+  </nav>
+
+  <div class="admin-container">
+    <h2 class="card-title" style="margin-bottom:20px;">ダッシュボード</h2>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-number" id="statTotalMembers">-</div><div class="stat-label">全会員数</div></div>
+      <div class="stat-card"><div class="stat-number" id="statActiveMembers">-</div><div class="stat-label">アクティブ会員</div></div>
+      <div class="stat-card"><div class="stat-number" id="statUnusedCoupons">-</div><div class="stat-label">未使用クーポン</div></div>
+      <div class="stat-card"><div class="stat-number" id="statBirthday">-</div><div class="stat-label">本日お誕生日</div></div>
+    </div>
+
+    <div class="card" id="birthdayCard" style="display:none;">
+      <h3 class="card-title">本日お誕生日の会員</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>名前</th><th>メール</th><th>電話番号</th></tr></thead>
+          <tbody id="birthdayTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">直近の配信ログ</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>日時</th><th>種別</th><th>件名</th><th>件数</th><th>結果</th></tr></thead>
+          <tbody id="recentLogsTable"><tr><td colspan="5" class="loading"><div class="spinner"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

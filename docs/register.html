@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員登録</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="public-container">
+    <div class="public-header">
+      <img src="img/logo.svg" alt="logo" class="logo">
+      <h1>会員登録</h1>
+      <div class="store-name" id="regStoreName"></div>
+    </div>
+
+    <div id="registerForm">
+      <div class="form-group">
+        <label>お名前 <span class="required">必須</span></label>
+        <input type="text" class="form-input" id="regName" placeholder="山田 花子">
+      </div>
+      <div class="form-group">
+        <label>フリガナ <span class="required">必須</span></label>
+        <input type="text" class="form-input" id="regNameKana" placeholder="ヤマダ ハナコ">
+      </div>
+      <div class="form-group">
+        <label>電話番号</label>
+        <input type="tel" class="form-input" id="regPhone" placeholder="090-1234-5678">
+      </div>
+      <div class="form-group">
+        <label>メールアドレス <span class="required">必須</span></label>
+        <input type="email" class="form-input" id="regEmail" placeholder="example@email.com">
+      </div>
+      <div class="form-group">
+        <label>お誕生日（月/日）</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="form-select" id="birthMonth" style="width:auto;"><option value="">月</option></select>
+          <span>/</span>
+          <select class="form-select" id="birthDay" style="width:auto;"><option value="">日</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="regMailOptIn" checked>
+          お得な情報やクーポンをメールで受け取る
+        </label>
+      </div>
+      <div style="margin-top:24px;">
+        <button class="btn btn-primary btn-block" id="regSubmitBtn" onclick="submitRegistration()">会員登録する</button>
+      </div>
+      <div id="regError" class="alert alert-error" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <div id="completeScreen" style="display:none;text-align:center;padding:40px 0;">
+      <div class="success-check"></div>
+      <h2 style="margin-top:20px;color:#2E7D32;">登録完了</h2>
+      <p style="margin-top:12px;color:#666;">会員登録が完了しました。<br>ご登録いただいたメールアドレスに<br>確認メールをお送りしました。</p>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/register.js"></script>
+  <script>document.getElementById('regStoreName').textContent = CONFIG.SITE_NAME;</script>
+</body>
+</html>

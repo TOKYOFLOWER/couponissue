@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クーポン</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="public-container">
+    <div class="public-header">
+      <img src="img/logo.svg" alt="logo" class="logo">
+      <div class="store-name" id="cpStoreName"></div>
+    </div>
+
+    <div id="loadingArea" class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:12px;">クーポン情報を読み込み中...</p>
+    </div>
+
+    <div id="errorArea" style="display:none;text-align:center;padding:40px 0;">
+      <p style="font-size:48px;">&#128542;</p>
+      <h2 style="margin-top:12px;color:#C62828;" id="errorTitle">エラー</h2>
+      <p style="margin-top:8px;color:#888;" id="errorMessage"></p>
+    </div>
+
+    <div id="couponArea" style="display:none;">
+      <div class="coupon-card" id="couponCard">
+        <div id="statusOverlay" class="status-overlay">
+          <div class="status-stamp" id="statusStamp"></div>
+        </div>
+        <div class="coupon-card-header" id="couponHeader">
+          <h2 id="couponName"></h2>
+          <div class="coupon-value" id="couponValue"></div>
+        </div>
+        <div class="coupon-card-body">
+          <p class="coupon-desc" id="couponDesc"></p>
+          <p class="coupon-expiry" id="couponExpiry"></p>
+          <p style="font-size:12px;color:#bbb;margin-top:8px;" id="memberName"></p>
+        </div>
+      </div>
+
+      <div id="useArea" style="display:none;">
+        <div id="swipeSection" style="display:none;">
+          <div class="swipe-area">
+            <div class="swipe-guide">
+              <span class="arrow">&#8594;</span>
+              <span>スワイプしてクーポンを使う</span>
+              <span class="arrow">&#8594;</span>
+            </div>
+            <button class="use-btn" id="useButton"
+                    ontouchstart="startHold(event)" ontouchend="endHold(event)"
+                    onmousedown="startHold(event)" onmouseup="endHold(event)" onmouseleave="endHold(event)">
+              <div class="progress-bar" id="progressBar"></div>
+              <span style="position:relative;z-index:1;">長押しで利用する</span>
+            </button>
+            <p style="font-size:12px;color:#999;margin-top:8px;text-align:center;">ボタンを2秒間長押ししてください</p>
+          </div>
+        </div>
+        <div id="staffSection" style="display:none;">
+          <div class="staff-notice">このクーポンをスタッフにお見せください</div>
+        </div>
+      </div>
+
+      <div id="usedMessage" style="display:none;text-align:center;padding:20px;">
+        <div class="success-check"></div>
+        <h3 style="margin-top:12px;color:#2E7D32;">クーポンを利用しました！</h3>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/coupon-view.js"></script>
+</body>
+</html>

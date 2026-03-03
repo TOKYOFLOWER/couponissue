@@ -5,7 +5,11 @@
       "Bash(rm:*)",
       "Bash(clasp push:*)",
       "Bash(clasp open:*)",
-      "Bash(clasp deploy:*)"
+      "Bash(clasp deploy:*)",
+      "Bash(clasp:*)",
+      "WebFetch(domain:script.google.com)",
+      "Bash(python3:*)",
+      "Bash(node:*)"
     ]
   }
 }

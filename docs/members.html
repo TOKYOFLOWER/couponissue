@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員管理 - クーポン管理システム</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="admin-nav">
+    <a href="index.html" class="nav-brand"><img src="img/logo.svg" alt="logo"><h1>クーポン管理システム</h1></a>
+    <ul class="nav-links">
+      <li><a href="index.html">ダッシュボード</a></li>
+      <li><a href="members.html">会員管理</a></li>
+      <li><a href="coupons.html">クーポン</a></li>
+      <li><a href="mail.html">メルマガ</a></li>
+    </ul>
+  </nav>
+
+  <div class="admin-container">
+    <div class="toolbar">
+      <h2 class="card-title">会員管理</h2>
+      <button class="btn btn-primary btn-small" onclick="showMemberModal()">新規登録</button>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="memberSearch" placeholder="名前・電話・メールで検索..." onkeyup="if(event.key==='Enter')searchMembers()">
+      <button onclick="searchMembers()">検索</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>名前</th><th>フリガナ</th><th>電話</th><th>メール</th><th>誕生日</th><th>ポイント</th><th>状態</th><th>操作</th></tr></thead>
+        <tbody id="membersTable"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 会員モーダル -->
+  <div class="modal-overlay" id="memberModal">
+    <div class="modal">
+      <div class="modal-header"><h3 id="memberModalTitle">新規会員登録</h3><button class="modal-close" onclick="closeModal('memberModal')">&times;</button></div>
+      <input type="hidden" id="editMemberId">
+      <div class="form-group"><label>お名前 <span class="required">必須</span></label><input type="text" class="form-input" id="mName"></div>
+      <div class="form-group"><label>フリガナ</label><input type="text" class="form-input" id="mNameKana"></div>
+      <div class="form-group"><label>電話番号</label><input type="tel" class="form-input" id="mPhone"></div>
+      <div class="form-group"><label>メール</label><input type="email" class="form-input" id="mEmail"></div>
+      <div class="form-group"><label>誕生日（MM/DD）</label><input type="text" class="form-input" id="mBirthday" placeholder="03/15"></div>
+      <div class="form-group"><label>ステータス</label><select class="form-select" id="mStatus"><option value="active">アクティブ</option><option value="inactive">無効</option><option value="unsubscribed">配信停止</option></select></div>
+      <div class="form-group"><label class="checkbox-label"><input type="checkbox" id="mMailOptIn" checked>メルマガ受信許可</label></div>
+      <div class="form-group"><label>備考</label><textarea class="form-textarea" id="mMemo" rows="3"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="saveMember()" style="flex:1;">保存</button>
+        <button class="btn btn-secondary" onclick="closeModal('memberModal')" style="flex:1;">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ポイントモーダル -->
+  <div class="modal-overlay" id="pointModal">
+    <div class="modal">
+      <div class="modal-header"><h3>ポイント操作</h3><button class="modal-close" onclick="closeModal('pointModal')">&times;</button></div>
+      <input type="hidden" id="pointMemberId">
+      <p id="pointMemberInfo" style="margin-bottom:16px;"></p>
+      <div class="form-group"><label>操作</label><select class="form-select" id="pointAction"><option value="earn">ポイント付与</option><option value="use">ポイント利用</option></select></div>
+      <div class="form-group"><label>ポイント数</label><input type="number" class="form-input" id="pointAmount" min="1"></div>
+      <div class="form-group"><label>理由</label><input type="text" class="form-input" id="pointReason"></div>
+      <button class="btn btn-primary btn-block" onclick="executePointAction()" style="margin-top:8px;">実行</button>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/members.js"></script>
+</body>
+</html>

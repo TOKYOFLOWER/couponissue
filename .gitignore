@@ -1,2 +1,3 @@
 node_modules/
-.clasp.json
+gas/.clasp.json
+docs/js/config.js

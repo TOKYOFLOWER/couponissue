@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>メルマガ配信 - クーポン管理システム</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="admin-nav">
+    <a href="index.html" class="nav-brand"><img src="img/logo.svg" alt="logo"><h1>クーポン管理システム</h1></a>
+    <ul class="nav-links">
+      <li><a href="index.html">ダッシュボード</a></li>
+      <li><a href="members.html">会員管理</a></li>
+      <li><a href="coupons.html">クーポン</a></li>
+      <li><a href="mail.html">メルマガ</a></li>
+    </ul>
+  </nav>
+
+  <div class="admin-container">
+    <h2 class="card-title" style="margin-bottom:20px;">メルマガ配信</h2>
+
+    <div class="card">
+      <h3 class="card-title">新規配信</h3>
+      <div class="form-group"><label>配信タイプ</label>
+        <select class="form-select" id="mailType" onchange="toggleMailTarget()">
+          <option value="magazine">一斉配信（メルマガ）</option>
+          <option value="individual">個別配信</option>
+        </select>
+      </div>
+      <div class="form-group" id="mailTargetGroup" style="display:none;">
+        <label>配信先会員</label>
+        <select class="form-select" id="mailTarget"><option value="">選択してください</option></select>
+      </div>
+      <div class="form-group"><label>件名 <span class="required">必須</span></label>
+        <input type="text" class="form-input" id="mailSubject" placeholder="例: 【{{store_name}}】春の特別キャンペーン">
+      </div>
+      <div class="form-group"><label>本文 <span class="required">必須</span></label>
+        <textarea class="form-textarea" id="mailBody" rows="8" placeholder="{{name}} 様&#10;&#10;いつもご利用ありがとうございます。&#10;&#10;{{coupon_url}}&#10;&#10;{{store_name}}"></textarea>
+        <p style="font-size:11px;color:#999;margin-top:4px;">
+          利用可能な変数: <code>{{name}}</code> <code>{{coupon_url}}</code> <code>{{store_name}}</code> <code>{{unsubscribe_url}}</code>
+        </p>
+      </div>
+      <div class="form-group"><label>クーポン添付（任意）</label>
+        <select class="form-select" id="mailCouponId"><option value="">クーポンなし</option></select>
+      </div>
+      <div id="mailAlert" style="display:none;"></div>
+      <button class="btn btn-primary btn-block" id="sendMailBtn" onclick="sendMailAction()">配信する</button>
+    </div>
+
+    <div class="card" style="margin-top:24px;">
+      <h3 class="card-title">配信ログ</h3>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr><th>日時</th><th>種別</th><th>件名</th><th>送信先</th><th>件数</th><th>結果</th></tr></thead>
+          <tbody id="mailLogsTable"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/mail.js"></script>
+</body>
+</html>
