@@ -43,18 +43,13 @@
       <div id="useArea" style="display:none;">
         <div id="swipeSection" style="display:none;">
           <div class="swipe-area">
-            <div class="swipe-guide">
-              <span class="arrow">&#8594;</span>
-              <span>スワイプしてクーポンを使う</span>
-              <span class="arrow">&#8594;</span>
+            <div class="slide-track" id="slideTrack">
+              <div class="slide-thumb" id="slideThumb">
+                <span class="slide-arrow">&#8250;</span>
+              </div>
+              <span class="slide-label">スライドしてクーポンを使う</span>
             </div>
-            <button class="use-btn" id="useButton"
-                    ontouchstart="startHold(event)" ontouchend="endHold(event)"
-                    onmousedown="startHold(event)" onmouseup="endHold(event)" onmouseleave="endHold(event)">
-              <div class="progress-bar" id="progressBar"></div>
-              <span style="position:relative;z-index:1;">長押しで利用する</span>
-            </button>
-            <p style="font-size:12px;color:#999;margin-top:8px;text-align:center;">ボタンを2秒間長押ししてください</p>
+            <p style="font-size:12px;color:#999;margin-top:8px;text-align:center;">右にスライドして利用</p>
           </div>
         </div>
         <div id="staffSection" style="display:none;">
