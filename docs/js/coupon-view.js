@@ -3,9 +3,6 @@
  */
 
 var couponData = null;
-var holdTimer = null;
-var holdProgress = 0;
-var isHolding = false;
 
 document.addEventListener('DOMContentLoaded', function() {
   var params = new URLSearchParams(window.location.search);
@@ -17,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   loadCoupon(token);
-  setupSwipe();
 });
 
 async function loadCoupon(token) {
@@ -64,6 +60,7 @@ function renderCoupon(data) {
     document.getElementById('useArea').style.display = 'block';
     if (data.coupon.usage_flow === 'customer_swipe') {
       document.getElementById('swipeSection').style.display = 'block';
+      setupSlider();
     } else {
       document.getElementById('staffSection').style.display = 'block';
     }
@@ -92,45 +89,79 @@ function showCouponError(title, message) {
   document.getElementById('errorMessage').textContent = message;
 }
 
-// 長押し処理
-function startHold(e) {
-  e.preventDefault();
-  if (isHolding) return;
-  isHolding = true;
-  holdProgress = 0;
+// スライダーUIセットアップ
+function setupSlider() {
+  var track = document.getElementById('slideTrack');
+  var thumb = document.getElementById('slideThumb');
+  if (!track || !thumb) return;
 
-  holdTimer = setInterval(function() {
-    holdProgress += 5;
-    document.getElementById('progressBar').style.width = holdProgress + '%';
-    if (holdProgress >= 100) {
-      clearInterval(holdTimer);
-      isHolding = false;
-      confirmUse();
-    }
-  }, 100);
-}
+  var dragging = false;
+  var startX = 0;
+  var thumbStartLeft = 0;
+  var maxLeft = 0;
 
-function endHold(e) {
-  if (e) e.preventDefault();
-  if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
-  isHolding = false;
-  holdProgress = 0;
-  document.getElementById('progressBar').style.width = '0%';
-}
-
-function confirmUse() {
-  if (confirm('このクーポンを利用しますか？\n※一度利用すると元に戻せません')) {
-    executeCouponUse();
+  function getMaxLeft() {
+    return track.offsetWidth - thumb.offsetWidth - 8; // 4px padding each side
   }
+
+  function onStart(clientX) {
+    if (!couponData || couponData.issued.status !== 'unused') return;
+    dragging = true;
+    startX = clientX;
+    thumbStartLeft = thumb.offsetLeft;
+    maxLeft = getMaxLeft();
+    thumb.classList.add('dragging');
+  }
+
+  function onMove(clientX) {
+    if (!dragging) return;
+    var diff = clientX - startX;
+    var newLeft = Math.max(4, Math.min(thumbStartLeft + diff, maxLeft));
+    thumb.style.left = newLeft + 'px';
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    thumb.classList.remove('dragging');
+    maxLeft = getMaxLeft();
+    var currentLeft = thumb.offsetLeft;
+
+    // 80%以上スライドで完了
+    if (currentLeft >= maxLeft * 0.8) {
+      thumb.style.left = maxLeft + 'px';
+      thumb.classList.add('complete');
+      executeCouponUse();
+    } else {
+      thumb.style.left = '4px';
+    }
+  }
+
+  // Touch events
+  thumb.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    onStart(e.touches[0].clientX);
+  });
+  document.addEventListener('touchmove', function(e) {
+    if (dragging) { e.preventDefault(); onMove(e.touches[0].clientX); }
+  }, { passive: false });
+  document.addEventListener('touchend', function() { onEnd(); });
+
+  // Mouse events (for desktop testing)
+  thumb.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    onStart(e.clientX);
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (dragging) onMove(e.clientX);
+  });
+  document.addEventListener('mouseup', function() { onEnd(); });
 }
 
 async function executeCouponUse() {
   var params = new URLSearchParams(window.location.search);
   var token = params.get('token');
-
-  var btn = document.getElementById('useButton');
-  btn.disabled = true;
-  btn.querySelector('span').textContent = '処理中...';
+  var thumb = document.getElementById('slideThumb');
 
   try {
     var result = await apiPublicPost('useCoupon', { token: token });
@@ -140,39 +171,18 @@ async function executeCouponUse() {
       showStatusOverlay('used', 'USED');
     } else {
       alert(result.error || '利用に失敗しました');
-      btn.disabled = false;
-      btn.querySelector('span').textContent = '長押しで利用する';
+      resetSlider();
     }
   } catch(e) {
     alert('エラーが発生しました: ' + e.message);
-    btn.disabled = false;
-    btn.querySelector('span').textContent = '長押しで利用する';
+    resetSlider();
   }
 }
 
-function setupSwipe() {
-  var card = document.getElementById('couponCard');
-  if (!card) return;
-  var startX = 0, currentX = 0, swiping = false;
-
-  card.addEventListener('touchstart', function(e) { startX = e.touches[0].clientX; swiping = true; });
-  card.addEventListener('touchmove', function(e) {
-    if (!swiping) return;
-    currentX = e.touches[0].clientX;
-    var diff = currentX - startX;
-    if (diff > 0) {
-      card.style.transform = 'translateX(' + Math.min(diff, 100) + 'px)';
-      card.style.opacity = 1 - Math.min(diff / 300, 0.3);
-    }
-  });
-  card.addEventListener('touchend', function() {
-    if (!swiping) return;
-    swiping = false;
-    var diff = currentX - startX;
-    card.style.transform = '';
-    card.style.opacity = '';
-    if (diff > 150 && couponData && couponData.issued.status === 'unused' && couponData.coupon.usage_flow === 'customer_swipe') {
-      confirmUse();
-    }
-  });
+function resetSlider() {
+  var thumb = document.getElementById('slideThumb');
+  if (thumb) {
+    thumb.classList.remove('complete');
+    thumb.style.left = '4px';
+  }
 }
