@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クーポン発行・管理システム デモ</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 48px 16px 40px;
+      background: linear-gradient(135deg, #F8BBD0 0%, #C8E6C9 100%);
+      border-radius: var(--radius-lg);
+      margin-bottom: 32px;
+    }
+    .hero .logo { width: 72px; height: 72px; margin-bottom: 16px; }
+    .hero h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .hero p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 24px;
+    }
+    .hero .btn-demo {
+      display: inline-block;
+      padding: 14px 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: var(--white);
+      border: none;
+      border-radius: 28px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+      transition: all 0.2s;
+    }
+    .hero .btn-demo:hover { opacity: 0.9; transform: translateY(-2px); }
+
+    /* Demo area hidden initially */
+    .demo-area { display: none; }
+    .demo-area.visible { display: block; }
+
+    /* Reset button */
+    .reset-wrap {
+      text-align: center;
+      margin-top: 20px;
+      display: none;
+    }
+    .reset-wrap.visible { display: block; }
+    .btn-reset {
+      display: inline-block;
+      padding: 10px 28px;
+      background: #9E9E9E;
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-reset:hover { background: #757575; }
+  </style>
+</head>
+<body>
+  <div class="public-container">
+    <!-- Hero Section -->
+    <div class="hero" id="heroSection">
+      <img src="../img/logo.svg" alt="logo" class="logo">
+      <h1>クーポン発行・管理システム デモ</h1>
+      <p>バックエンド不要で動作するデモページです</p>
+      <button class="btn-demo" id="btnStartDemo">デモを試す</button>
+    </div>
+
+    <!-- Demo Area -->
+    <div class="demo-area" id="demoArea">
+      <div class="public-header">
+        <img src="../img/logo.svg" alt="logo" class="logo">
+        <div class="store-name">銀座東京フラワー</div>
+      </div>
+
+      <div class="coupon-card" id="couponCard">
+        <div id="statusOverlay" class="status-overlay">
+          <div class="status-stamp" id="statusStamp"></div>
+        </div>
+        <div class="coupon-card-header" id="couponHeader" style="background: linear-gradient(135deg, #F8BBD0, #F48FB1);">
+          <h2 id="couponName">ウェルカムクーポン</h2>
+          <div class="coupon-value" id="couponValue">10%OFF</div>
+        </div>
+        <div class="coupon-card-body">
+          <p class="coupon-desc" id="couponDesc">ご登録ありがとうございます。全商品にご利用いただけます。</p>
+          <p class="coupon-expiry" id="couponExpiry">有効期限: 2026/12/31</p>
+          <p style="font-size:12px;color:#bbb;margin-top:8px;" id="memberName">山田太郎 様</p>
+        </div>
+      </div>
+
+      <!-- Swipe UI -->
+      <div id="useArea">
+        <div class="swipe-area">
+          <div class="slide-track" id="slideTrack">
+            <div class="slide-thumb" id="slideThumb">
+              <span class="slide-arrow">&#8250;</span>
+            </div>
+            <span class="slide-label">スライドしてクーポンを使う</span>
+          </div>
+          <p style="font-size:12px;color:#999;margin-top:8px;text-align:center;">右にスライドして利用</p>
+        </div>
+      </div>
+
+      <!-- Used message -->
+      <div id="usedMessage" style="display:none;text-align:center;padding:20px;">
+        <div class="success-check"></div>
+        <h3 style="margin-top:12px;color:#2E7D32;">クーポンを利用しました！</h3>
+      </div>
+
+      <!-- Reset button -->
+      <div class="reset-wrap" id="resetWrap">
+        <button class="btn-reset" id="btnReset">もう一度試す</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var heroSection = document.getElementById('heroSection');
+      var demoArea = document.getElementById('demoArea');
+      var btnStartDemo = document.getElementById('btnStartDemo');
+      var btnReset = document.getElementById('btnReset');
+
+      // Start demo
+      btnStartDemo.addEventListener('click', function() {
+        heroSection.style.display = 'none';
+        demoArea.classList.add('visible');
+      });
+
+      // Reset
+      btnReset.addEventListener('click', function() {
+        var overlay = document.getElementById('statusOverlay');
+        overlay.className = 'status-overlay';
+        document.getElementById('usedMessage').style.display = 'none';
+        document.getElementById('useArea').style.display = 'block';
+        document.getElementById('resetWrap').classList.remove('visible');
+        document.getElementById('couponExpiry').textContent = '有効期限: 2026/12/31';
+        var thumb = document.getElementById('slideThumb');
+        thumb.classList.remove('complete');
+        thumb.style.left = '4px';
+      });
+
+      // Slider logic
+      var track = document.getElementById('slideTrack');
+      var thumb = document.getElementById('slideThumb');
+      var dragging = false;
+      var startX = 0;
+      var thumbStartLeft = 0;
+      var used = false;
+
+      function getMaxLeft() {
+        return track.offsetWidth - thumb.offsetWidth - 8;
+      }
+
+      function onStart(clientX) {
+        if (used) return;
+        dragging = true;
+        startX = clientX;
+        thumbStartLeft = thumb.offsetLeft;
+        thumb.classList.add('dragging');
+      }
+
+      function onMove(clientX) {
+        if (!dragging) return;
+        var diff = clientX - startX;
+        var maxLeft = getMaxLeft();
+        var newLeft = Math.max(4, Math.min(thumbStartLeft + diff, maxLeft));
+        thumb.style.left = newLeft + 'px';
+      }
+
+      function onEnd() {
+        if (!dragging) return;
+        dragging = false;
+        thumb.classList.remove('dragging');
+        var maxLeft = getMaxLeft();
+        var currentLeft = thumb.offsetLeft;
+
+        if (currentLeft >= maxLeft * 0.8) {
+          // Complete
+          used = true;
+          thumb.style.left = maxLeft + 'px';
+          thumb.classList.add('complete');
+          document.getElementById('useArea').style.display = 'none';
+          document.getElementById('usedMessage').style.display = 'block';
+
+          var overlay = document.getElementById('statusOverlay');
+          overlay.className = 'status-overlay active used';
+          document.getElementById('statusStamp').textContent = 'USED';
+
+          var now = new Date();
+          document.getElementById('couponExpiry').textContent =
+            '利用日: ' + now.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+
+          document.getElementById('resetWrap').classList.add('visible');
+        } else {
+          thumb.style.left = '4px';
+        }
+      }
+
+      // Touch events
+      thumb.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        onStart(e.touches[0].clientX);
+      });
+      document.addEventListener('touchmove', function(e) {
+        if (dragging) { e.preventDefault(); onMove(e.touches[0].clientX); }
+      }, { passive: false });
+      document.addEventListener('touchend', function() { onEnd(); });
+
+      // Mouse events
+      thumb.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        onStart(e.clientX);
+      });
+      document.addEventListener('mousemove', function(e) {
+        if (dragging) onMove(e.clientX);
+      });
+      document.addEventListener('mouseup', function() { onEnd(); });
+
+      // Reset also resets used flag
+      btnReset.addEventListener('click', function() {
+        used = false;
+      });
+    })();
+  </script>
+</body>
+</html>
