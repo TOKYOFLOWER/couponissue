@@ -127,10 +127,13 @@ function setupSlider() {
     maxLeft = getMaxLeft();
     var currentLeft = thumb.offsetLeft;
 
-    // 80%以上スライドで完了
+    // 80%以上スライドで完了（UI即切替→API非同期）
     if (currentLeft >= maxLeft * 0.8) {
       thumb.style.left = maxLeft + 'px';
       thumb.classList.add('complete');
+      document.getElementById('useArea').style.display = 'none';
+      document.getElementById('usedMessage').style.display = 'block';
+      showStatusOverlay('used', 'USED');
       executeCouponUse();
     } else {
       thumb.style.left = '4px';
@@ -161,25 +164,25 @@ function setupSlider() {
 async function executeCouponUse() {
   var params = new URLSearchParams(window.location.search);
   var token = params.get('token');
-  var thumb = document.getElementById('slideThumb');
 
   try {
     var result = await apiPublicPost('useCoupon', { token: token });
-    if (result.success) {
-      document.getElementById('useArea').style.display = 'none';
-      document.getElementById('usedMessage').style.display = 'block';
-      showStatusOverlay('used', 'USED');
-    } else {
+    if (!result.success) {
       alert(result.error || '利用に失敗しました');
-      resetSlider();
+      revertUI();
     }
   } catch(e) {
     alert('エラーが発生しました: ' + e.message);
-    resetSlider();
+    revertUI();
   }
 }
 
-function resetSlider() {
+function revertUI() {
+  // API失敗時: スライダーとクーポン表示を元に戻す
+  var overlay = document.getElementById('statusOverlay');
+  overlay.className = 'status-overlay';
+  document.getElementById('usedMessage').style.display = 'none';
+  document.getElementById('useArea').style.display = 'block';
   var thumb = document.getElementById('slideThumb');
   if (thumb) {
     thumb.classList.remove('complete');
